@@ -1,0 +1,81 @@
+/* lūtera direction: 2026-11-21 — warmth lives in light; silver/chrome in material. */
+:root {
+  --ivory:#f7f4ed; --parchment:#eee9df; --champagne:#ebddc4;
+  --amber-light:#e8c589; --chrome:#bcc3c2; --graphite:#2e3538;
+  --ink:#303337; --muted:#747877; --edge:#d9d7d0;
+  --surface:rgba(255,254,250,.93); --accent:#444f55;
+  font-family: 'Segoe UI Variable','Segoe UI',system-ui,sans-serif;
+  color: var(--ink); background:var(--ivory);
+}
+body {
+  background:
+    radial-gradient(ellipse 640px 470px at 85% 5%,rgba(236,200,145,.29),transparent 79%),
+    radial-gradient(ellipse 820px 440px at 12% 78%,rgba(196,199,192,.17),transparent 86%),
+    linear-gradient(138deg,#f8f6f1,#f3f0ea 70%,#eeeae3);
+}
+.app-shell {max-width:1700px;padding:0 clamp(18px,2.3vw,40px)}
+.topline {height:59px;letter-spacing:.025em}
+.wordmark {font-family:Georgia,serif;font-size:15px;color:#292c2e;letter-spacing:.15em;font-weight:normal}
+.wordmark b{font-family:'Segoe UI',sans-serif;letter-spacing:.035em;font-size:10px;text-transform:uppercase;font-weight:550}
+.app-state{color:#858a87;letter-spacing:.1em}.state-slash{color:#c5c3ba}
+.live-pip{border-color:#9d9c92}
+.hero {
+  height:210px;padding:28px 35px;border-radius:4px 48px 4px 4px;
+  border:1px solid #ddd8cd;
+  background:linear-gradient(115deg,rgba(255,254,250,.98) 0%,#f4f0e7 52%,#e4dfd4 100%);
+  box-shadow:0 14px 55px rgba(58,59,49,.055),inset 0 1px 0 #ffffff;
+}
+.hero:after{background:radial-gradient(rgba(234,183,107,.20),transparent 69%)}
+.eyebrow,.panel-heading {color:#777c7a;letter-spacing:.16em}
+.hero h1 {font-family:'Bodoni MT','Didot','Instrument Serif',Georgia,serif;font-size:clamp(62px,5vw,82px);color:#292b2d;font-weight:400;letter-spacing:-.043em;line-height:.99;margin:13px 0 12px}
+.hero h1 span{color:#8b8d88}
+.hero p{font-size:13px;letter-spacing:.02em;color:#777974}
+.hero-accents{color:#8a8c83}.dot{background:#d4b57f}.hero-rule{background:#b9bbb6}
+.portal-scene{width:490px;right:0}
+.ripple{border-color:rgba(159,164,161,.17);transform:rotate(-10deg)}
+.portal-light{background:radial-gradient(ellipse,rgba(255,229,176,.90),rgba(250,237,204,.35) 45%,transparent 71%);filter:blur(14px);right:89px;top:0;width:217px;height:190px}
+.door-frame{width:115px;height:165px;right:130px;bottom:-4px;border:1px solid #a2aaa8;box-shadow:inset 0 0 0 1px #f8f8f5,0 0 0 7px rgba(196,202,201,.12)}
+.door{border:1px solid #c9cdca;background:linear-gradient(118deg,rgba(252,250,243,.95),rgba(211,218,218,.80) 50%,rgba(248,243,234,.94));box-shadow:inset -9px 0 24px #89928e29,inset 4px 0 15px #ffffff66}
+.door-knob{background:#697477;right:14px;top:105px}
+.door-rosette{position:absolute;left:50%;top:49px;transform:translateX(-50%);height:53px;width:53px;filter:drop-shadow(0 0 12px rgba(229,186,128,.2));color:#788280}
+.portal-vertical{position:absolute;width:1px;height:165px;right:258px;bottom:0;background:linear-gradient(transparent,#bec5c4 50%,transparent);opacity:.5}
+.workspace{gap:14px;margin-top:14px;grid-template-columns:minmax(290px,33%) minmax(600px,1fr)}
+.panel{border-radius:8px 25px 8px 8px;border-color:#dbd7cd;background:rgba(255,254,250,.90);box-shadow:0 14px 46px #4f575013}
+.panel h2{font-family:Georgia,serif;font-size:20px;letter-spacing:-.025em;font-weight:400;color:#303337}
+.hint,.studio-title p{color:#898b85}
+.queue-head{background:#353d41;color:#d9ded9;letter-spacing:.08em}
+.track-list{background:#fcfbf7}
+.track-row{border-bottom-color:#e6e2d9}.track-row:hover{background:#f2f0e9}
+.track-row.selected{background:#ecebe4;border-left-color:#8f9694}
+.track-name{color:#353b3f}.track-desc{color:#828885}
+.row-pitch{background:#fdfcf8;border-color:#d6d7d0;color:#40494c}
+.button{border-radius:5px;border-color:#d1d2cb;color:#33383a;background:#fffefa;transition:background .18s ease,transform .18s ease,border-color .18s ease}
+.button.primary{background:#353e42;border-color:#353e42;color:#fcfaf5;box-shadow:0 5px 19px #404a4615}
+.button.primary:hover{background:#535e62;border-color:#535e62}
+.button.secondary:hover{background:#eeede7}
+.button:active{transform:translateY(1px)}
+.small-pill{color:#7c8788!important;border:1px solid #d6d9d6}
+.pitch-card {background:linear-gradient(111deg,#faf9f4,#eeede6 97%);border:1px solid #e0ded5;border-radius:8px}
+.field-label,.pitch-metrics span,.apply-batch,.compare-heading,.form-grid label>span,.folder-field>span{color:#81857f}
+.pitch-input-line input{color:#30383d;border-bottom-color:#c5c8c5}
+.pitch-input-line .unit{color:#9aa19f}
+.badge-small{background:#e7e6df;color:#5c666a;border-radius:2px}
+.preset{border-color:#d1d4d0;border-radius:3px;background:#fdfcf8;color:#616a6b}
+.preset:hover,.preset.active{background:#e4e5df;border-color:#979f9c;color:#343d41}
+.pitch-metrics strong{color:#394449}
+.apply-batch input,.same-folder input{accent-color:#455257}
+.compare-toggle,.switch-group{background:#eaeae4;border-color:#d6d9d3;border-radius:5px}
+.compare-toggle button.selected{color:#344046}
+.reference-toolbar{background:#fbf7ee;border-color:#e6dcc5}
+.wave-canvas{border-radius:5px;border-color:#d5dad5!important;background:#f7f8f5!important}
+.wave-letter{border-color:#d4d8d5;background:#eceeea;color:#535e62;border-radius:3px}
+.wave-letter.b{color:#35464b;background:#e1e6e4;border-color:#c6cecc}
+.wave-id strong{color:#546062}.wave-id small,.duration{color:#838b89}.duration strong{color:#485358}
+.transport-area{border-color:#d7dbd8}.play-btn{background:#353e42!important;color:#f9f8f3!important;border-color:#353e42!important}
+.export-zone{border-top-color:#d6d7d0}.input-group input,.input-group select{border-color:#d4d7d2;color:#353a3b;background:#fdfcf9;border-radius:4px}
+.export-button{background:#353e42}.progress-rail{background:#e8e9e2!important}.progress-rail>div{background:#798480!important}
+footer{color:#888e88}
+.toast{background:#303b3e;box-shadow:0 9px 31px #272e2c2d}
+:focus-visible{outline-color:#7b898b!important}
+@media (max-width:1190px){.hero{height:193px}.portal-scene{opacity:.80}.hero h1{font-size:62px}}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}

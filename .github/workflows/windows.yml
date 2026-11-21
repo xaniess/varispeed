@@ -1,0 +1,96 @@
+name: Windows • lūtera varispeed
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    name: Test and build Windows x64
+    runs-on: windows-latest
+    timeout-minutes: 65
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Set up Rust MSVC
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+      - name: Rust compilation cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - name: Download FFmpeg sidecars
+        shell: pwsh
+        run: ./scripts/prepare-ffmpeg.ps1
+      - name: Verify sidecars
+        shell: pwsh
+        run: |
+          & ./src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe -hide_banner -version | Select-Object -First 1
+          & ./src-tauri/binaries/ffprobe-x86_64-pc-windows-msvc.exe -hide_banner -version | Select-Object -First 1
+      - name: Install frontend dependencies
+        run: npm install --no-fund --no-audit
+      - name: Run tests
+        run: npm test
+      - name: Compile Tauri NSIS installer
+        run: npm run tauri -- build --bundles nsis
+      - name: Stage distributables
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force -Path 'release', 'release/portable' | Out-Null
+          $nsis = Get-ChildItem 'src-tauri/target/release/bundle/nsis' -Filter '*.exe' | Select-Object -First 1
+          if (-not $nsis) { throw 'NSIS installer missing' }
+          Copy-Item $nsis.FullName 'release/'
+          $main = 'src-tauri/target/release/lutera_varispeed.exe'
+          if (-not (Test-Path $main)) { throw 'Application executable missing' }
+          Copy-Item $main 'release/portable/lutera-varispeed.exe'
+          Copy-Item 'src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe' 'release/portable/ffmpeg.exe'
+          Copy-Item 'src-tauri/binaries/ffprobe-x86_64-pc-windows-msvc.exe' 'release/portable/ffprobe.exe'
+          Copy-Item 'THIRD_PARTY_NOTICES.md' 'release/portable/'
+          Get-ChildItem 'src-tauri/binaries/FFMPEG_*' -File -ErrorAction SilentlyContinue | Copy-Item -Destination 'release/portable/'
+          Compress-Archive -Path 'release/portable/*' -DestinationPath 'release/lutera-varispeed-windows-x64-portable.zip' -CompressionLevel Optimal
+          Remove-Item 'release/portable' -Recurse -Force
+          Get-ChildItem 'release/'
+      - name: Upload Windows builds
+        uses: actions/upload-artifact@v4
+        with:
+          name: lutera-varispeed-windows-x64
+          path: release/*
+          if-no-files-found: error
+          retention-days: 30
+
+  github-release:
+    name: Create tagged GitHub release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build-windows
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download verified build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: lutera-varispeed-windows-x64
+          path: release
+      - name: Publish pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" release/* --repo "$REPO" \
+            --title "lūtera / varispeed $TAG" \
+            --notes "Windows x64 pre-release. Exact-cent resampling, A/B comparison, batch exports. Un-signed binaries may trigger Windows SmartScreen. See project README and third-party notices." \
+            --prerelease --verify-tag
