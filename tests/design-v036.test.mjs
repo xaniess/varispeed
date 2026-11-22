@@ -34,3 +34,9 @@ test('no horizontal rubber band and no section numbers', () => {
   assert.match(css, /overscroll-behavior-x:\s*none/);
   assert.match(css, /overflow-x:\s*clip/);
 });
+
+test('Rust waveform analysis compiles numeric weights with leading zeros', () => {
+  const rust = read('src-tauri/src/lib.rs');
+  assert.match(rust, /smoothed\[i\] = frames\[i - 1\] \* 0\.2 \+ frames\[i\] \* 0\.6 \+ frames\[i \+ 1\] \* 0\.2;/);
+  assert.doesNotMatch(rust, /\*\s+\.[0-9]/);
+});
