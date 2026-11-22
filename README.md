@@ -1,4 +1,4 @@
-# lūtera / varispeed v0.3.1 — Tauri edition
+# lūtera / varispeed v0.3.2 — Tauri edition
 
 A small, local-first audio utility. **Not Electron. Not Python.** The UI runs in Tauri 2 / Windows WebView2, the native layer is Rust, and FFmpeg + FFprobe are included in a built release as sidecars.
 
@@ -72,3 +72,13 @@ Only the native Rust backend can launch the two named FFmpeg sidecars. Export fi
 ## Testing and status
 
 Run `npm test` to validate cent ratios, duration math, name templates, and filename safety. The UI source can be inspected without compiling, but the audio backend and final Windows Tauri binary **have not been compiled or manually tested on Windows in this authoring environment**. Report a Windows build error with the full message and `rustc -V`, `node -v` if needed.
+
+## v0.3.2 monitoring refinements
+
+- Optional **Pan cue** sends A to the left ear and B to the right ear, using the Web Audio stereo panner. It only affects listening; exported files remain untouched. Designed for headphones.
+- A/B switching now performs a short gain-ramped handoff (35 ms) when Web Audio is available, minimizing switch clicks.
+- Waveforms use cached canvas images and animation-frame playheads rather than reconstructing bars at each audio event.
+- A single version identifier stays in the package metadata; repeated on-screen version marks and explanatory copy have been removed.
+- All visible em dashes are removed; the interface uses short labels and reduced motion support.
+
+The native Windows UI and headphone panning behavior must still be validated on Windows.

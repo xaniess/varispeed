@@ -7,12 +7,78 @@ const state = {
   tracks: [], selected: -1, mode: 'processed', side: 'A', preview: null,
   busy: false, exporting: false, stopAfterCurrent: false, exportFolder: null,
   previewSerial: 0, playhead: 0, statusTimer: null, previewTimer: null,
-  lastPreviews: new Map()
+  lastPreviews: new Map(), panCue: false, switchSerial: 0
 };
 const players = { A: new Audio(), B: new Audio() };
 players.A.preload = 'auto'; players.B.preload = 'auto';
+// Tauri's asset protocol returns an origin-matched CORS header.
+// Explicit CORS mode is needed when routing audio through Web Audio.
+players.A.crossOrigin = 'anonymous'; players.B.crossOrigin = 'anonymous';
 players.A.volume = .85; players.B.volume = .85;
 let previewRequest = 0;
+let audioGraph = null;
+let waveFrame = null;
+const waveCaches = new Map();
+
+// Monitoring only: exports are always unpanned. Web Audio gain ramps avoid switch clicks.
+async function ensureAudioGraph() {
+  if (!audioGraph) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return false;
+    try {
+      const context = new AC();
+      const master = context.createGain();
+      master.gain.value = Number($('volume').value) / 100;
+      master.connect(context.destination);
+      const sideNodes = {};
+      for (const side of ['A', 'B']) {
+        const source = context.createMediaElementSource(players[side]);
+        const pan = context.createStereoPanner();
+        const gain = context.createGain();
+        gain.gain.value = state.side === side ? 1 : 0;
+        source.connect(pan).connect(gain).connect(master);
+        sideNodes[side] = { pan, gain };
+        players[side].volume = 1;
+      }
+      audioGraph = { context, master, sideNodes };
+      setMonitorPan();
+    } catch (error) { console.warn('Audio monitoring fallback:', error); return false; }
+  }
+  if (audioGraph.context.state === 'suspended') await audioGraph.context.resume();
+  return true;
+}
+function setMonitorPan() {
+  if (audioGraph) {
+    audioGraph.sideNodes.A.pan.pan.value = state.panCue ? -1 : 0;
+    audioGraph.sideNodes.B.pan.pan.value = state.panCue ? 1 : 0;
+  }
+  document.body.classList.toggle('pan-enabled', state.panCue);
+}
+function setGains(active, fade = false) {
+  if (!audioGraph) return;
+  const now = audioGraph.context.currentTime;
+  for (const side of ['A', 'B']) {
+    const gain = audioGraph.sideNodes[side].gain.gain;
+    gain.cancelScheduledValues(now);
+    gain.setValueAtTime(gain.value, now);
+    if (fade) gain.linearRampToValueAtTime(side === active ? 1 : 0, now + .035);
+    else gain.setValueAtTime(side === active ? 1 : 0, now);
+  }
+}
+function updateListeningUI() {
+  document.querySelectorAll('.wave-panel').forEach(el => el.classList.toggle('is-listening', el.dataset.side === state.side));
+  $('side-a').setAttribute('aria-label', 'Listen to A, original');
+  $('side-b').setAttribute('aria-label', 'Listen to B, comparison');
+}
+function tick() {
+  waveFrame = null;
+  if (!state.preview || !isPlaying()) return;
+  state.playhead = currentFraction();
+  refreshTransport(); renderWaveforms();
+  waveFrame = requestAnimationFrame(tick);
+}
+function startTicks() { if (waveFrame == null) waveFrame = requestAnimationFrame(tick); }
+
 
 const selected = () => state.tracks[state.selected] || null;
 const player = () => players[state.side];
@@ -56,7 +122,7 @@ function renderList() {
     const info = document.createElement('div'); info.style.minWidth = '0';
     const title = document.createElement('div'); title.className = 'track-name'; title.textContent = t.name;
     const desc = document.createElement('div'); desc.className = 'track-desc';
-    desc.textContent = `${outputStem(t)} · ${formatCents(t.cents)} · ${formatSeconds(t.duration)}`;
+    desc.textContent = `${formatCents(t.cents)} · ${formatSeconds(t.duration)}`;
     info.append(title, desc);
     const pitch = document.createElement('input');
     pitch.className = 'row-pitch'; pitch.type = 'number'; pitch.step = '0.01'; pitch.min = '-1200'; pitch.max = '1200';
@@ -77,8 +143,8 @@ function renderList() {
 function syncSelectedFields() {
   const t = selected();
   if (!t) {
-    $('pitch-input').value = '0'; $('export-name').value = ''; $('expected-label').textContent = '—';
-    $('filename-preview').textContent = '—'; $('wave-name-a').textContent = 'NO TRACK SELECTED'; return;
+    $('pitch-input').value = '0'; $('export-name').value = ''; $('expected-label').textContent = '...';
+    $('filename-preview').textContent = '...'; $('wave-name-a').textContent = 'NO TRACK SELECTED'; return;
   }
   $('pitch-input').value = String(t.cents);
   $('export-name').value = outputStem(t);
@@ -94,16 +160,16 @@ function selectTrack(index) {
   state.selected = index; clearAudio(); renderList(); syncSelectedFields(); schedulePreview(20);
 }
 function clearAudio() {
-  ++previewRequest;
+  ++previewRequest; ++state.switchSerial; if (waveFrame != null) { cancelAnimationFrame(waveFrame); waveFrame = null; }
   for (const p of [players.A, players.B]) { p.pause(); p.removeAttribute('src'); p.load(); }
   state.preview = null; state.playhead = 0; $('play-pause').disabled = true;
-  $('duration-a').textContent = $('duration-b').textContent = '—';
+  $('duration-a').textContent = $('duration-b').textContent = '...';
   $('elapsed-a').textContent = $('elapsed-b').textContent = '0:00.000';
-  $('duration-difference').textContent = 'DURATION DIFFERENCE · —';
+  $('duration-difference').textContent = 'DURATION · ...';
   $('wave-name-b').textContent = 'MATCHING TIMELINE';
   refreshTransport(); renderWaveforms();
 }
-function stopAudio() { players.A.pause(); players.B.pause(); $('play-icon').textContent = '▶'; $('play-label').textContent = 'Play'; }
+function stopAudio() { ++state.switchSerial; players.A.pause(); players.B.pause(); setGains(state.side); $('play-icon').textContent = '▶'; $('play-label').textContent = 'Play'; }
 async function addTracks(paths) {
   const existing = new Set(state.tracks.map(x => x.path.toLowerCase()));
   let added = 0;
@@ -117,7 +183,7 @@ async function addTracks(paths) {
       renderList();
     } catch (e) { showMessage(`Cannot import ${fileStem(path)}: ${String(e).slice(0, 130)}`, 'error'); }
   }
-  renderState('LOCAL / READY');
+  renderState('Ready');
   if (added > 0) {
     if (state.selected < 0) selectTrack(0);
     else renderList();
@@ -148,7 +214,7 @@ async function loadPreview() {
   const serial = ++previewRequest;
   const source = t.path; const cents = t.cents; const reference = state.mode === 'reference' ? t.reference : null;
   const oldFraction = currentFraction(); const wasPlaying = isPlaying();
-  stopAudio(); renderState('Rendering your listening comparison…');
+  stopAudio(); renderState('Preparing preview…');
   $('play-pause').disabled = true;
   try {
     const result = await invoke('make_preview', { source, cents, reference });
@@ -160,17 +226,17 @@ async function loadPreview() {
     players.A.load(); players.B.load();
     $('duration-a').textContent = prettyTime(result.originalDuration);
     $('duration-b').textContent = prettyTime(result.bDuration);
-    $('wave-name-a').textContent = `${t.name} · file ${prettyTime(result.sourceFileDuration)}`;
-    $('wave-name-b').textContent = reference ? `${reference.split(/[\\/]/).pop()} · file ${prettyTime(result.referenceFileDuration)}` : `${formatCents(result.effectiveCents)} · RESAMPLE`;
+    $('wave-name-a').textContent = t.name;
+    $('wave-name-b').textContent = reference ? `${reference.split(/[\\/]/).pop()} · file ${prettyTime(result.referenceFileDuration)}` : 'Exact resample';
     $('b-title').textContent = reference ? 'REFERENCE EXPORT' : 'PROCESSED';
     const difference = result.bDuration - result.originalDuration;
-    $('duration-difference').textContent = `B − A · ${deltaText(difference)} · ${difference < 0 ? 'SHORTER' : difference > 0 ? 'LONGER' : 'SAME LENGTH'}`;
+    $('duration-difference').textContent = `B vs A: ${deltaText(difference)} ${difference < 0 ? 'shorter' : difference > 0 ? 'longer' : 'equal'}`;
     if (reference) {
       $('expected-label').textContent = `REF ${prettyTime(result.bDuration)}`;
-      renderState('Reference A/B · duration is not a pitch measurement');
+      renderState('Reference ready');
     } else {
       $('expected-label').textContent = prettyTime(result.bDuration);
-      renderState(`Processed · actual ${centsText(result.effectiveCents)}`);
+      renderState('Preview ready');
     }
     $('play-pause').disabled = false;
     for (const [side, p] of Object.entries(players)) {
@@ -190,21 +256,48 @@ async function loadPreview() {
   }
 }
 
-function setSide(side) {
+async function setSide(side) {
   if (!state.preview || side === state.side) return;
-  const fraction = currentFraction(); const playing = isPlaying();
-  player().pause(); state.side = side; state.playhead = fraction;
-  const target = player(); if (Number.isFinite(target.duration)) target.currentTime = safeFraction(fraction) * target.duration;
-  if (playing) target.play().catch(e => showMessage(`Playback failed: ${e.message}`, 'error'));
-  refreshTransport(); renderWaveforms();
+  const token = ++state.switchSerial;
+  const previous = state.side;
+  const fraction = currentFraction();
+  const wasPlaying = isPlaying();
+  const outgoing = players[previous], incoming = players[side];
+  const duration = Number.isFinite(incoming.duration) ? incoming.duration : 0;
+  if (duration > 0) incoming.currentTime = Math.min(duration - .001, safeFraction(fraction) * duration);
+  if (!wasPlaying) {
+    state.side = side; state.playhead = fraction;
+    setGains(side); refreshTransport(); renderWaveforms(); return;
+  }
+  try {
+    const graphReady = await ensureAudioGraph();
+    if (graphReady) audioGraph.sideNodes[side].gain.gain.value = 0;
+    else incoming.volume = 0;
+    await incoming.play();
+    if (token !== state.switchSerial) { incoming.pause(); return; }
+    state.side = side; state.playhead = fraction;
+    if (graphReady) setGains(side, true);
+    else { incoming.volume = Number($('volume').value) / 100; outgoing.pause(); }
+    refreshTransport(); renderWaveforms(); startTicks();
+    if (graphReady) setTimeout(() => {
+      if (token === state.switchSerial) outgoing.pause();
+    }, 55);
+  } catch (e) {
+    if (token === state.switchSerial) {
+      state.side = previous; setGains(previous); refreshTransport();
+      showMessage(`Cannot switch versions: ${e.message}`, 'error');
+    }
+  }
 }
 async function togglePlayback() {
   if (!state.preview) return;
   try {
-    if (isPlaying()) player().pause();
+    if (isPlaying()) { ++state.switchSerial; players.A.pause(); players.B.pause(); setGains(state.side); }
     else {
       if (Number.isFinite(player().duration) && player().currentTime >= player().duration - 0.05) seek(0);
-      await player().play();
+      const graphReady = await ensureAudioGraph();
+      if (graphReady) setGains(state.side);
+      await player().play(); startTicks();
     }
     refreshTransport();
   } catch (e) { showMessage(`Cannot play audio: ${e.message}`, 'error'); }
@@ -223,43 +316,71 @@ function refreshTransport() {
   for (const side of ['A', 'B']) {
     const el = $('side-' + side.toLowerCase()); el.classList.toggle('active', side === state.side); el.setAttribute('aria-pressed', String(side === state.side));
   }
+  updateListeningUI();
   const fraction = currentFraction();
   if (state.preview) {
     $('elapsed-a').textContent = prettyTime(fraction * state.preview.originalDuration);
     $('elapsed-b').textContent = prettyTime(fraction * state.preview.bDuration);
-    $('playtime').textContent = `${prettyTime(player().currentTime || 0, false)} / ${prettyTime(player().duration || 0, false)}`;
-  } else $('playtime').textContent = '0:00 / 0:00';
+  }
 }
-function drawWave(id, peaks, color) {
-  const canvas = $(id), rect = canvas.getBoundingClientRect();
-  const width = Math.max(1, rect.width), height = Math.max(1, rect.height);
-  const dpr = Math.min(2, devicePixelRatio || 1);
+function buildWaveCache(id, peaks, color, width, height, dpr) {
+  const canvas = document.createElement('canvas');
   canvas.width = Math.round(width * dpr); canvas.height = Math.round(height * dpr);
   const ctx = canvas.getContext('2d'); ctx.scale(dpr, dpr);
-  ctx.strokeStyle = '#d0d5d0'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(10, height / 2); ctx.lineTo(width - 10, height / 2); ctx.stroke();
-  if (!peaks?.length) {
-    ctx.fillStyle = '#c6cfcb';
-    for (let x = 13; x < width - 13; x += 10) ctx.fillRect(x, height / 2 - 3, 3, 6);
-    return;
+  ctx.strokeStyle = '#dee1dc'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(12, height / 2); ctx.lineTo(width - 12, height / 2); ctx.stroke();
+  const padding = 12, usable = Math.max(1, width - 24);
+  if (peaks?.length) {
+    const maxBars = Math.max(20, Math.floor(usable / 2));
+    for (let i = 0; i < maxBars; i++) {
+      const first = Math.floor(i * peaks.length / maxBars);
+      const last = Math.max(first + 1, Math.floor((i + 1) * peaks.length / maxBars));
+      let peak = 0;
+      for (let k = first; k < last && k < peaks.length; k++) peak = Math.max(peak, Math.max(0, peaks[k]));
+      const amp = Math.max(1.5, (peak ** .88) * (height * .40));
+      const x = padding + i / maxBars * usable;
+      ctx.fillStyle = color.base;
+      const barWidth = Math.max(1.25, usable / maxBars * .64);
+      ctx.beginPath();
+      if (typeof ctx.roundRect === 'function') ctx.roundRect(x, height / 2 - amp, barWidth, amp * 2, Math.min(1, barWidth / 2));
+      else ctx.rect(x, height / 2 - amp, barWidth, amp * 2);
+      ctx.fill();
+    }
+  } else {
+    ctx.fillStyle = '#c4ccc8';
+    for (let x = 13; x < width - 13; x += 12) ctx.fillRect(x, height / 2 - 2, 3, 4);
   }
+  waveCaches.set(id, {canvas, peaks, width, height, dpr});
+  return canvas;
+}
+function drawWave(id, peaks, color) {
+  const canvas = $(id), bounds = canvas.getBoundingClientRect();
+  const width = Math.max(1, Math.round(bounds.width));
+  const height = Math.max(1, Math.round(bounds.height));
+  const dpr = Math.min(2, devicePixelRatio || 1);
+  if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
+    canvas.width = Math.round(width * dpr); canvas.height = Math.round(height * dpr);
+    waveCaches.delete(id);
+  }
+  const cached = waveCaches.get(id);
+  const base = cached && cached.peaks === peaks && cached.width === width && cached.height === height && cached.dpr === dpr
+    ? cached.canvas : buildWaveCache(id, peaks, color, width, height, dpr);
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(base, 0, 0);
   const fraction = currentFraction();
-  const padding = 12, usable = width - padding * 2;
-  const bar = Math.max(1.25, usable / peaks.length * .62);
-  for (let i = 0; i < peaks.length; i++) {
-    const x = padding + i / peaks.length * usable;
-    const amp = Math.max(1.5, (Math.max(0, peaks[i]) ** .88) * (height * .40));
-    ctx.fillStyle = i / peaks.length <= fraction ? color.active : color.base;
-    ctx.fillRect(x, height / 2 - amp, bar, amp * 2);
-  }
-  const playX = padding + usable * fraction;
-  ctx.strokeStyle = '#5e6a6b'; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(playX, 3); ctx.lineTo(playX, height - 3); ctx.stroke();
-  ctx.beginPath(); ctx.arc(playX, 4, 3.5, 0, Math.PI * 2); ctx.fillStyle = '#5e6a6b'; ctx.fill();
+  const pad = 12 * dpr, usable = canvas.width - pad * 2;
+  const x = pad + usable * fraction;
+  ctx.fillStyle = color.active;
+  ctx.globalAlpha = .09; ctx.fillRect(pad, 0, Math.max(0, x - pad), canvas.height); ctx.globalAlpha = 1;
+  ctx.strokeStyle = '#47565a'; ctx.lineWidth = 1.5 * dpr;
+  ctx.beginPath(); ctx.moveTo(x, 3 * dpr); ctx.lineTo(x, canvas.height - 3 * dpr); ctx.stroke();
+  ctx.beginPath(); ctx.arc(x, 4 * dpr, 3 * dpr, 0, Math.PI * 2); ctx.fillStyle = '#47565a'; ctx.fill();
 }
 function renderWaveforms() {
-  drawWave('wave-a', state.preview?.originalPeaks, {base:'#b8bebb',active:'#59676a'});
-  drawWave('wave-b', state.preview?.bPeaks, {base:'#a6b3b2',active:'#34474d'});
+  drawWave('wave-a', state.preview?.originalPeaks, {base:'#9aa4a2',active:'#4e595b'});
+  drawWave('wave-b', state.preview?.bPeaks, {base:'#b4bdb9',active:'#303e42'});
 }
 
 function setReferenceMode(mode) {
@@ -338,11 +459,23 @@ function bindEvents() {
   $('mode-reference').addEventListener('click', () => setReferenceMode('reference'));
   $('choose-reference').addEventListener('click', chooseReference);
   $('clear-reference').addEventListener('click', () => { const t = selected(); if (t) { t.reference = null; syncSelectedFields(); schedulePreview(10); } });
-  $('side-a').addEventListener('click', () => setSide('A'));
-  $('side-b').addEventListener('click', () => setSide('B'));
+  $('side-a').addEventListener('click', () => void setSide('A'));
+  $('side-b').addEventListener('click', () => void setSide('B'));
   $('play-pause').addEventListener('click', togglePlayback);
   $('restart').addEventListener('click', () => seek(0));
-  $('volume').addEventListener('input', e => { for (const p of Object.values(players)) p.volume = Number(e.target.value) / 100; });
+  $('volume').addEventListener('input', e => { const volume = Number(e.target.value) / 100; if (audioGraph) audioGraph.master.gain.value = volume; else for (const p of Object.values(players)) p.volume = volume; });
+  $('monitor-pan').addEventListener('change', async e => {
+    state.panCue = e.target.checked; setMonitorPan();
+    if (state.panCue) {
+      try {
+        const ok = await ensureAudioGraph();
+        if (!ok) throw new Error('Audio panning is unavailable');
+      } catch (error) {
+        state.panCue = false; e.target.checked = false; setMonitorPan();
+        showMessage(`Pan cue unavailable: ${String(error)}`, 'error');
+      }
+    }
+  });
   for (const side of ['a','b']) {
     const wave = $('wave-' + side);
     wave.addEventListener('click', e => {
@@ -351,10 +484,10 @@ function bindEvents() {
     wave.addEventListener('keydown', e => { if (e.key === 'ArrowLeft') { seek(currentFraction() - .01); e.preventDefault(); } if (e.key === 'ArrowRight') { seek(currentFraction() + .01); e.preventDefault(); } });
   }
   for (const p of Object.values(players)) {
-    p.addEventListener('timeupdate', () => { state.playhead = currentFraction(); refreshTransport(); renderWaveforms(); });
+    p.addEventListener('timeupdate', () => { if (p !== player()) return; state.playhead = currentFraction(); if (!isPlaying()) { refreshTransport(); renderWaveforms(); } });
     p.addEventListener('ended', () => refreshTransport());
     p.addEventListener('pause', () => refreshTransport());
-    p.addEventListener('play', () => refreshTransport());
+    p.addEventListener('play', () => { refreshTransport(); if (p === player()) startTicks(); });
     p.addEventListener('error', () => { if (state.preview && p.src) showMessage('Playback could not open the preview audio. Check the Tauri asset configuration.', 'error'); });
   }
   $('export-name').addEventListener('input', e => {
@@ -380,8 +513,8 @@ function bindEvents() {
     const tag = document.activeElement?.tagName;
     if (['INPUT','TEXTAREA','SELECT','BUTTON'].includes(tag)) return;
     if (e.code === 'Space') { e.preventDefault(); void togglePlayback(); }
-    if (e.key.toLowerCase() === 'a') setSide('A');
-    if (e.key.toLowerCase() === 'b') setSide('B');
+    if (e.key.toLowerCase() === 'a') void setSide('A');
+    if (e.key.toLowerCase() === 'b') void setSide('B');
   });
   new ResizeObserver(() => renderWaveforms()).observe($('wave-a'));
   new ResizeObserver(() => renderWaveforms()).observe($('wave-b'));
