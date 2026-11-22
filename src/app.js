@@ -117,7 +117,7 @@ function renderList() {
   const list = $('track-list'); list.replaceChildren();
   if (!state.tracks.length) {
     const empty = document.createElement('div'); empty.className = 'empty-collection';
-    empty.innerHTML = '<span class="empty-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M4 12h16" /></svg></span><strong>Your collection is empty</strong><span>Drop audio here</span>';
+    empty.innerHTML = '<button class="empty-mark" type="button" aria-label="Add audio files" title="Add audio files"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M4 12h16" /></svg></button><strong>Your collection is empty</strong><span>Drop audio here</span>';
     list.append(empty); return;
   }
   state.tracks.forEach((t, i) => {
@@ -177,7 +177,7 @@ function clearAudio() {
   $('reference-analysis').textContent = 'Attach a reference to estimate its shift';
   refreshTransport(); renderWaveforms();
 }
-function stopAudio() { ++state.switchSerial; players.A.pause(); players.B.pause(); setGains(state.side); $('play-icon').textContent = '▶'; $('play-label').textContent = 'Play'; }
+function stopAudio() { ++state.switchSerial; players.A.pause(); players.B.pause(); setGains(state.side); updatePlayButton(false); }
 async function addTracks(paths) {
   const existing = new Set(state.tracks.map(x => x.path.toLowerCase()));
   let added = 0;
@@ -329,9 +329,30 @@ function seek(fraction) {
   }
   refreshTransport(); renderWaveforms();
 }
+function updatePlayButton(playing) {
+  const button = $('play-pause');
+  button.dataset.playing = String(playing);
+  button.setAttribute('aria-label', playing ? 'Pause audio' : 'Play audio');
+  button.title = playing ? 'Pause' : 'Play';
+  $('play-label').textContent = playing ? 'Pause' : 'Play';
+}
+let lastAudibleVolume = 85;
+function updateVolume(value) {
+  const level = Math.max(0, Math.min(100, Number(value) || 0));
+  $('volume').value = String(level);
+  if (level > 0) lastAudibleVolume = level;
+  const button = $('volume-toggle');
+  button.dataset.level = level === 0 ? 'muted' : level < 45 ? 'low' : 'high';
+  const muted = level === 0;
+  button.setAttribute('aria-pressed', String(muted));
+  button.setAttribute('aria-label', muted ? 'Unmute audio' : 'Mute audio');
+  button.title = muted ? 'Unmute audio' : 'Mute audio';
+  if (audioGraph) audioGraph.master.gain.value = level / 100;
+  else for (const p of Object.values(players)) p.volume = level / 100;
+}
 function refreshTransport() {
   const playing = state.preview && isPlaying();
-  $('play-icon').textContent = playing ? 'Ⅱ' : '▶'; $('play-label').textContent = playing ? 'Pause' : 'Play';
+  updatePlayButton(Boolean(playing));
   for (const side of ['A', 'B']) {
     const el = $('side-' + side.toLowerCase()); el.classList.toggle('active', side === state.side); el.setAttribute('aria-pressed', String(side === state.side));
   }
@@ -525,6 +546,9 @@ async function exportBatch() {
 
 function bindEvents() {
   $('add-tracks').addEventListener('click', chooseFiles);
+  $('track-list').addEventListener('click', event => {
+    if (event.target.closest('.empty-mark')) void chooseFiles();
+  });
   $('remove-track').addEventListener('click', () => {
     if (!selected()) return;
     ++previewRequest; stopAudio(); state.tracks.splice(state.selected, 1);
@@ -559,7 +583,8 @@ function bindEvents() {
   $('side-b').addEventListener('click', () => void setSide('B'));
   $('play-pause').addEventListener('click', togglePlayback);
   $('restart').addEventListener('click', () => seek(0));
-  $('volume').addEventListener('input', e => { const volume = Number(e.target.value) / 100; if (audioGraph) audioGraph.master.gain.value = volume; else for (const p of Object.values(players)) p.volume = volume; });
+  $('volume').addEventListener('input', e => updateVolume(e.target.value));
+  $('volume-toggle').addEventListener('click', () => updateVolume(Number($('volume').value) === 0 ? lastAudibleVolume : 0));
   $('monitor-pan').addEventListener('change', async e => {
     state.panCue = e.target.checked; setMonitorPan();
     if (state.panCue) {

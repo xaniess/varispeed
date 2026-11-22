@@ -42,6 +42,6 @@ Calibration against four privately provided FL Studio original/export pairs reco
 
 Follow [lutera_product_guidelines.md](lutera_product_guidelines.md) for the shared design system, supplemented by [DESIGN_GUIDELINES.md](DESIGN_GUIDELINES.md) for this app. The shared guidelines also live in ChatGPT Library at `/lutera_product_guidelines.md`.
 
-## v0.3.5
+## v0.3.6
 
 See [CHANGELOG.md](CHANGELOG.md) for the changes from v0.3.3.

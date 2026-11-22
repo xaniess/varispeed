@@ -307,7 +307,7 @@ async fn export_audio(app: AppHandle, request: ExportRequest) -> Result<String, 
         let target = unique_target(folder, &stem, ext);
         match fs::rename(&temp, &target) {
             Ok(()) => return Ok(target.to_string_lossy().into_owned()),
-            Err(e) if target.exists() && attempt < 5 => { attempt += 1; continue; }
+            Err(_e) if target.exists() && attempt < 5 => { attempt += 1; continue; }
             Err(e) => { let _ = fs::remove_file(&temp); return Err(format!("Cannot save export: {e}")); }
         }
     }

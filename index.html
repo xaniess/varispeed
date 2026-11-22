@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="/src/updater.css" />
   <link rel="stylesheet" href="/src/refinement.css" />
   <link rel="stylesheet" href="/src/v035.css" />
+  <link rel="stylesheet" href="/src/v036.css" />
 </head>
 <body>
   <div class="app-shell">
@@ -35,12 +36,12 @@
 
     <main class="workspace">
       <aside class="panel collection" id="drop-zone">
-        <div class="panel-heading"><span>01 <span class="slash">/</span> COLLECTION</span><span id="track-count">0 TRACKS</span></div>
+        <div class="panel-heading"><span>COLLECTION</span><span id="track-count">0 TRACKS</span></div>
         <h2>Your tracks</h2>
         
         <div class="queue-head"><span>TRACK</span><span>SHIFT</span></div>
         <div class="track-list" id="track-list" aria-label="Imported tracks">
-          <div class="empty-collection"><span class="empty-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M4 12h16" /></svg></span><strong>Your collection is empty</strong><span>Drop audio here</span></div>
+          <div class="empty-collection"><button class="empty-mark" type="button" aria-label="Add audio files" title="Add audio files"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M4 12h16" /></svg></button><strong>Your collection is empty</strong><span>Drop audio here</span></div>
         </div>
         <div class="queue-footer">
           <div class="queue-actions">
@@ -52,7 +53,7 @@
       </aside>
 
       <section class="panel studio">
-        <div class="panel-heading"><span>02 <span class="slash">/</span> LISTENING ROOM</span></div>
+        <div class="panel-heading"><span>LISTENING ROOM</span></div>
         <div class="studio-title"><div><h2>Compare</h2></div><div id="render-state" class="render-state">Add a track to begin</div></div>
 
         <div class="pitch-card">
@@ -105,17 +106,35 @@
         </div>
         <div class="transport-area">
           <div class="transport-row"><div class="switch-group"><button id="side-a" class="active" aria-pressed="true">A <span>Original</span></button><button id="side-b" aria-pressed="false">B <span>Compare</span></button></div>
-            <button id="restart" class="transport-icon" aria-label="Return to start" title="Return to start">↶</button>
-            <button id="play-pause" class="play-btn" disabled><span id="play-icon">▶</span> <span id="play-label">Play</span></button>
+            <button id="restart" class="transport-icon" type="button" aria-label="Return to start" title="Return to start">
+              <svg class="control-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 11.5a8 8 0 1 0 2.1-5.4"/><path d="M4.5 4.5v6h6"/><path d="M12 8v5l3.5 2"/></svg>
+            </button>
+            <button id="play-pause" class="play-btn" type="button" data-playing="false" aria-label="Play audio" disabled>
+              <span id="play-icon" class="play-icon" aria-hidden="true">
+                <svg class="control-glyph icon-play" viewBox="0 0 24 24"><path d="M8 5.5 19 12 8 18.5Z"/></svg>
+                <svg class="control-glyph icon-pause" viewBox="0 0 24 24"><path d="M7.5 5.5v13M16.5 5.5v13"/></svg>
+              </span>
+              <span id="play-label">Play</span>
+            </button>
             
             <label class="pan-cue" for="monitor-pan" title="Monitoring only. A plays from the left, B from the right. Headphones recommended."><input type="checkbox" id="monitor-pan" aria-label="Pan cue: A left, B right"><span class="pan-label">Pan cue</span><small>A ◂  ▸ B</small></label>
-            <label class="volume-control" for="volume"><span class="volume-icon">◖))</span><input id="volume" type="range" min="0" max="100" value="85" aria-label="Playback volume"></label>
+            <div class="volume-control">
+              <button id="volume-toggle" class="volume-button" type="button" data-level="high" aria-label="Mute audio" aria-pressed="false" title="Mute audio">
+                <svg class="control-glyph volume-glyph" viewBox="0 0 24 24" aria-hidden="true">
+                  <path class="speaker-shape" d="M4 9v6h4l5 4V5L8 9Z"/>
+                  <path class="speaker-wave wave-low" d="M16 9a4 4 0 0 1 0 6"/>
+                  <path class="speaker-wave wave-high" d="M18.5 6a8 8 0 0 1 0 12"/>
+                  <path class="speaker-mute" d="m17 9 5 6m0-6-5 6"/>
+                </svg>
+              </button>
+              <input id="volume" type="range" min="0" max="100" value="85" aria-label="Playback volume">
+            </div>
           </div>
           <div class="transport-foot"><span id="duration-difference">DURATION · ...</span><span>Space: play/pause  |  A/B: switch</span></div>
         </div>
 
         <div class="export-zone">
-          <div class="panel-heading"><span>03 <span class="slash">/</span> OUTPUT</span></div>
+          <div class="panel-heading"><span>OUTPUT</span></div>
           <div class="export-header"><h2>Export</h2><span id="filename-preview" class="filename-preview">...</span></div>
           <div class="form-grid">
             <label class="input-group wide"><span>FILENAME</span><input id="export-name" type="text" placeholder="Select a track to name its export" /></label>

@@ -1,0 +1,46 @@
+/* varispeed 0.3.6: restrained transport icons and deliberate horizontal scrolling. */
+html, body {
+  max-width: 100%;
+  overflow-x: clip;
+  overscroll-behavior-x: none;
+}
+.app-shell { overflow-x: clip; }
+.collection .track-list { overscroll-behavior-x: none; }
+.wave-canvas { overscroll-behavior-x: none; touch-action: pan-y; }
+.panel-heading .slash { display: none; }
+.empty-collection .empty-mark {
+  appearance: none;
+  background: transparent;
+  color: #414d4b;
+  border: 1px solid #aeb7af;
+  width: 64px;
+  height: 64px;
+  flex: 0 0 auto;
+  cursor: pointer;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  transition: background 170ms ease, border-color 170ms ease, transform 170ms ease;
+}
+.empty-collection .empty-mark svg { width: 25px; height: 25px; }
+.empty-collection .empty-mark:hover { background: #e9ede6; border-color: #75877d; }
+.empty-collection .empty-mark:active { transform: scale(.96); }
+.empty-collection .empty-mark:focus-visible,
+.volume-button:focus-visible { outline: 2px solid #687e73; outline-offset: 3px; }
+.transport-icon, .volume-button, .play-btn { display: inline-flex; align-items: center; justify-content: center; }
+.transport-icon { width: 40px; height: 42px; padding: 0; }
+.control-glyph { width: 20px; height: 20px; display: block; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.play-btn { gap: 9px; }
+.play-btn #play-icon { display: grid; place-items: center; width: 20px; height: 20px; padding: 0; }
+.play-icon .icon-play { fill: currentColor; stroke: currentColor; stroke-width: 1.4; }
+.play-icon .icon-pause { display: none; stroke-width: 2.5; }
+.play-btn[data-playing="true"] .icon-play { display: none; }
+.play-btn[data-playing="true"] .icon-pause { display: block; }
+.volume-control { display: inline-flex; gap: 6px; align-items: center; }
+.volume-button { width: 34px; height: 36px; padding: 0; border: 1px solid transparent; border-radius: 7px; color: #53625b; background: transparent; }
+.volume-button:hover { background: #ecf0ea; border-color: #d7dfd7; }
+.volume-button .speaker-mute, .volume-button[data-level="muted"] .speaker-wave { display: none; }
+.volume-button[data-level="low"] .wave-high { display: none; }
+.volume-button[data-level="muted"] .speaker-mute { display: block; }
+.volume-control input { cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { .empty-collection .empty-mark { transition: none; } }

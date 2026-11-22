@@ -36,8 +36,8 @@ or commit your private key anywhere, including issues, PRs, chat or source files
 4. Publish a stable version by pushing a matching version tag, for example:
 
    ```powershell
-   git tag v0.3.5
-   git push origin v0.3.5
+   git tag v0.3.6
+   git push origin v0.3.6
    ```
 
    Do this **only when the three version files say `0.3.5`**, with the intended
