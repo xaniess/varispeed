@@ -72,3 +72,8 @@ Only the native Rust backend can launch the two named FFmpeg sidecars. Export fi
 ## Testing and status
 
 Run `npm test` to validate cent ratios, duration math, name templates, and filename safety. The UI source can be inspected without compiling, but the audio backend and final Windows Tauri binary **have not been compiled or manually tested on Windows in this authoring environment**. Report a Windows build error with the full message and `rustc -V`, `node -v` if needed.
+
+
+## Releases and in-app updates
+
+Tag builds publish signed Windows installers and a GitHub updater feed. Ordinary commits still produce temporary Actions artifacts. In-app Updates checks the public feed and offers user-confirmed installation. The repository owner must first generate a signing key and configure GitHub Actions secrets. See [RELEASES.md](RELEASES.md).

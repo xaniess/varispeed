@@ -266,9 +266,14 @@ async fn export_audio(app: AppHandle, request: ExportRequest) -> Result<String, 
 }
 
 pub fn run() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_shell::init())
-        .setup(|app| {
+    let mut builder = tauri::Builder::default().plugin(tauri_plugin_shell::init());
+    // Only signed release builds enable the updater, never unsigned CI builds.
+    if let Some(key) = option_env!("TAURI_UPDATER_PUBKEY") {
+        if !key.trim().is_empty() {
+            builder = builder.plugin(tauri_plugin_updater::Builder::new().pubkey(key).build());
+        }
+    }
+    builder.setup(|app| {
             // Old decoded previews are ephemeral. Clear them on each launch.
             if let Ok(path) = app.path().app_cache_dir() {
                 let previews = path.join("wave-previews");
