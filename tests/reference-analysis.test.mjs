@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { estimateReferenceCents, formatReferenceEstimate } from '../src/reference-analysis.js';
+import { estimateReferenceCents, formatReferenceEstimate, bestReferenceEstimate, estimateFromDurations } from '../src/reference-analysis.js';
 
 // Deterministic irregular transients approximate the changing energy contour
 // of a song without storing or redistributing third-party recordings.
@@ -43,5 +43,26 @@ test('rejects silent, unrelated, and too-short audio', () => {
   assert.equal(estimateReferenceCents(src, silence), null);
   assert.equal(estimateReferenceCents(src, mismatch), null);
   assert.equal(estimateReferenceCents([1,2,3], [1,2,3]), null);
-  assert.match(formatReferenceEstimate(null), /unavailable/);
+  assert.match(formatReferenceEstimate(null), /Unable/);
+});
+
+
+test('duration fallback recovers approximate +10 cents for geeked_mix', () => {
+  const estimate = bestReferenceEstimate([], [], 84.322, 83.846);
+  assert.equal(estimate.method, 'duration');
+  assert.ok(Math.abs(estimate.cents - 9.80) < .03);
+  assert.match(formatReferenceEstimate(estimate), /Approx/);
+  assert.match(formatReferenceEstimate(estimate), /padding/);
+});
+
+test('matched audio alignment remains the preferred method', () => {
+  const a = sourceEnvelope();
+  const b = resampleEnvelope(a, -13, 90);
+  const estimate = bestReferenceEstimate(a, b, 92, 93);
+  assert.equal(estimate.method, 'alignment');
+  assert.ok(Math.abs(estimate.cents + 13) < .3);
+});
+
+test('duration estimator rejects unhelpful durations safely', () => {
+  for (const x of [NaN, 0, -2, Infinity]) assert.equal(estimateFromDurations(x, 80), null);
 });

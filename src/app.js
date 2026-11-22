@@ -1,7 +1,7 @@
 import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { ratio, centsText, prettyTime, deltaText, safeStem, renderName, fileStem, safeFraction } from './core.js';
-import { estimateReferenceCents, formatReferenceEstimate } from './reference-analysis.js';
+import { bestReferenceEstimate, formatReferenceEstimate } from './reference-analysis.js';
 
 const $ = (id) => document.getElementById(id);
 const state = {
@@ -20,6 +20,11 @@ let previewRequest = 0;
 let audioGraph = null;
 let waveFrame = null;
 const waveCaches = new Map();
+let waveformMode = 'detail';
+const waveDurations = () => state.preview ? {
+  A: state.preview.originalDuration, B: state.preview.bDuration,
+  max: Math.max(state.preview.originalDuration, state.preview.bDuration)
+} : { A: 0, B: 0, max: 0 };
 
 // Monitoring only: exports are always unpanned. Web Audio gain ramps avoid switch clicks.
 async function ensureAudioGraph() {
@@ -167,6 +172,7 @@ function clearAudio() {
   $('duration-a').textContent = $('duration-b').textContent = '...';
   $('elapsed-a').textContent = $('elapsed-b').textContent = '0:00.000';
   $('duration-difference').textContent = 'DURATION · ...';
+  updateLengthComparison();
   $('wave-name-b').textContent = 'MATCHING TIMELINE';
   $('reference-analysis').textContent = 'Attach a reference to estimate its shift';
   refreshTransport(); renderWaveforms();
@@ -232,7 +238,10 @@ async function loadPreview() {
     $('wave-name-b').textContent = reference ? `${reference.split(/[\\/]/).pop()} · file ${prettyTime(result.referenceFileDuration)}` : 'Exact resample';
     $('b-title').textContent = reference ? 'REFERENCE EXPORT' : 'PROCESSED';
     if (reference) {
-      const estimated = estimateReferenceCents(result.referenceSignalA, result.referenceSignalB);
+      const estimated = bestReferenceEstimate(
+        result.referenceSignalA, result.referenceSignalB,
+        result.originalDuration, result.bDuration
+      );
       $('reference-analysis').textContent = formatReferenceEstimate(estimated);
     } else {
       $('reference-analysis').textContent = 'Attach a reference to estimate its shift';
@@ -240,8 +249,7 @@ async function loadPreview() {
     // Large high-resolution signal arrays are not used by the waveform display.
     delete result.referenceSignalA;
     delete result.referenceSignalB;
-    const difference = result.bDuration - result.originalDuration;
-    $('duration-difference').textContent = `B vs A: ${deltaText(difference)} ${difference < 0 ? 'shorter' : difference > 0 ? 'longer' : 'equal'}`;
+    updateLengthComparison();
     if (reference) {
       $('expected-label').textContent = `REF ${prettyTime(result.bDuration)}`;
       renderState('Reference ready');
@@ -334,37 +342,71 @@ function refreshTransport() {
     $('elapsed-b').textContent = prettyTime(fraction * state.preview.bDuration);
   }
 }
-function buildWaveCache(id, peaks, color, width, height, dpr) {
+// Every waveform uses the same time scale. A shortened B now ends before A.
+// Detail uses RMS contrast so very loud or limited music still has structure.
+function percentile(values, fraction) {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * fraction))];
+}
+function makeBars(peaks, rms, count) {
+  const out = [];
+  const samples = rms?.length ? rms : peaks || [];
+  if (!samples.length) return out;
+  const low = percentile(samples, .12), high = percentile(samples, .90);
+  const scale = Math.max(.018, high - low);
+  const ceiling = Math.max(.08, percentile(samples, .96) * 1.25);
+  for (let i = 0; i < count; i++) {
+    const a = Math.floor(i * samples.length / count);
+    const b = Math.max(a + 1, Math.floor((i + 1) * samples.length / count));
+    let energy = 0, peak = 0, n = 0;
+    for (let j = a; j < b && j < samples.length; j++) {
+      energy += samples[j]; peak = Math.max(peak, peaks?.[j] || samples[j]); n++;
+    }
+    if (!n) { out.push([0, 0]); continue; }
+    const mean = energy / n;
+    // Detail is intentionally contrast-enhanced, not a loudness meter.
+    const detail = Math.max(.055, Math.min(.94, .12 + (mean - low) / scale * .72));
+    const natural = Math.max(.035, Math.min(.94, mean / ceiling * .76));
+    const core = waveformMode === 'detail' ? detail : natural;
+    const transient = Math.min(.97, Math.max(core, core + Math.max(0, peak - mean) * .16));
+    out.push([transient, core]);
+  }
+  return out;
+}
+function buildWaveCache(id, peaks, rms, color, width, height, dpr, usableFraction) {
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(width * dpr); canvas.height = Math.round(height * dpr);
   const ctx = canvas.getContext('2d'); ctx.scale(dpr, dpr);
-  ctx.strokeStyle = '#dee1dc'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(12, height / 2); ctx.lineTo(width - 12, height / 2); ctx.stroke();
-  const padding = 12, usable = Math.max(1, width - 24);
+  const padding = 12, usable = Math.max(1, width - padding * 2);
+  const activeWidth = Math.max(0, usable * usableFraction);
+  ctx.fillStyle = '#f5f4ee'; ctx.fillRect(padding, 0, usable, height);
+  ctx.fillStyle = '#e9eae5';
+  ctx.fillRect(padding + activeWidth, 0, usable - activeWidth, height);
+  ctx.strokeStyle = '#dde1da'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(padding, height / 2); ctx.lineTo(width - padding, height / 2); ctx.stroke();
   if (peaks?.length) {
-    const maxBars = Math.max(20, Math.floor(usable / 2));
-    for (let i = 0; i < maxBars; i++) {
-      const first = Math.floor(i * peaks.length / maxBars);
-      const last = Math.max(first + 1, Math.floor((i + 1) * peaks.length / maxBars));
-      let peak = 0;
-      for (let k = first; k < last && k < peaks.length; k++) peak = Math.max(peak, Math.max(0, peaks[k]));
-      const amp = Math.max(1.5, (peak ** .88) * (height * .40));
-      const x = padding + i / maxBars * usable;
+    const bars = makeBars(peaks, rms, Math.max(20, Math.floor(activeWidth / 1.5)));
+    const barStep = activeWidth / Math.max(1, bars.length);
+    bars.forEach(([outer, inner], i) => {
+      const x = padding + i * barStep;
+      const outerAmp = Math.max(.7, outer * height * .44);
+      const coreAmp = Math.max(.6, inner * height * .41);
+      ctx.fillStyle = color.ghost;
+      ctx.fillRect(x, height / 2 - outerAmp, Math.max(.8, barStep * .78), outerAmp * 2);
       ctx.fillStyle = color.base;
-      const barWidth = Math.max(1.25, usable / maxBars * .64);
-      ctx.beginPath();
-      if (typeof ctx.roundRect === 'function') ctx.roundRect(x, height / 2 - amp, barWidth, amp * 2, Math.min(1, barWidth / 2));
-      else ctx.rect(x, height / 2 - amp, barWidth, amp * 2);
-      ctx.fill();
-    }
-  } else {
-    ctx.fillStyle = '#c4ccc8';
-    for (let x = 13; x < width - 13; x += 12) ctx.fillRect(x, height / 2 - 2, 3, 4);
+      ctx.fillRect(x, height / 2 - coreAmp, Math.max(.8, barStep * .58), coreAmp * 2);
+    });
   }
-  waveCaches.set(id, {canvas, peaks, width, height, dpr});
+  const endX = padding + activeWidth;
+  ctx.strokeStyle = color.end; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(endX, 1); ctx.lineTo(endX, height - 1); ctx.stroke();
+  ctx.fillStyle = color.end;
+  ctx.fillRect(Math.max(padding, endX - 1.8), 1, 3.6, 4);
+  waveCaches.set(id, { canvas, peaks, rms, width, height, dpr, usableFraction, mode: waveformMode });
   return canvas;
 }
-function drawWave(id, peaks, color) {
+function drawWave(id, peaks, rms, color, duration) {
   const canvas = $(id), bounds = canvas.getBoundingClientRect();
   const width = Math.max(1, Math.round(bounds.width));
   const height = Math.max(1, Math.round(bounds.height));
@@ -373,25 +415,59 @@ function drawWave(id, peaks, color) {
     canvas.width = Math.round(width * dpr); canvas.height = Math.round(height * dpr);
     waveCaches.delete(id);
   }
+  const maxDuration = waveDurations().max;
+  const usableFraction = maxDuration > 0 ? Math.min(1, duration / maxDuration) : 1;
   const cached = waveCaches.get(id);
-  const base = cached && cached.peaks === peaks && cached.width === width && cached.height === height && cached.dpr === dpr
-    ? cached.canvas : buildWaveCache(id, peaks, color, width, height, dpr);
+  const base = cached && cached.peaks === peaks && cached.rms === rms &&
+    cached.width === width && cached.height === height && cached.dpr === dpr &&
+    cached.usableFraction === usableFraction && cached.mode === waveformMode
+      ? cached.canvas : buildWaveCache(id, peaks, rms, color, width, height, dpr, usableFraction);
   const ctx = canvas.getContext('2d');
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(base, 0, 0);
+  if (!state.preview) return;
   const fraction = currentFraction();
   const pad = 12 * dpr, usable = canvas.width - pad * 2;
-  const x = pad + usable * fraction;
+  const x = pad + usable * (fraction * duration / Math.max(.001, maxDuration));
+  const endX = pad + usable * usableFraction;
   ctx.fillStyle = color.active;
-  ctx.globalAlpha = .09; ctx.fillRect(pad, 0, Math.max(0, x - pad), canvas.height); ctx.globalAlpha = 1;
+  ctx.globalAlpha = .07; ctx.fillRect(pad, 0, Math.max(0, x - pad), canvas.height); ctx.globalAlpha = 1;
   ctx.strokeStyle = '#47565a'; ctx.lineWidth = 1.5 * dpr;
   ctx.beginPath(); ctx.moveTo(x, 3 * dpr); ctx.lineTo(x, canvas.height - 3 * dpr); ctx.stroke();
   ctx.beginPath(); ctx.arc(x, 4 * dpr, 3 * dpr, 0, Math.PI * 2); ctx.fillStyle = '#47565a'; ctx.fill();
 }
 function renderWaveforms() {
-  drawWave('wave-a', state.preview?.originalPeaks, {base:'#9aa4a2',active:'#4e595b'});
-  drawWave('wave-b', state.preview?.bPeaks, {base:'#b4bdb9',active:'#303e42'});
+  const d = waveDurations();
+  drawWave('wave-a', state.preview?.originalPeaks, state.preview?.originalRms,
+    { base: '#64716e', ghost: '#b4bcb7', active: '#455d59', end: '#5b716d' }, d.A);
+  drawWave('wave-b', state.preview?.bPeaks, state.preview?.bRms,
+    { base: '#6f7976', ghost: '#bbc4bd', active: '#3c5857', end: '#6b796f' }, d.B);
+}
+function updateLengthComparison() {
+  const panel = $('length-comparison');
+  const d = waveDurations();
+  panel.hidden = !state.preview;
+  if (!state.preview || !d.max) return;
+  const diff = d.B - d.A;
+  const percent = 100 * Math.abs(diff) / d.A;
+  $('duration-difference').textContent = `B is ${Math.abs(diff).toFixed(3)}s ${diff < -.0005 ? 'shorter' : diff > .0005 ? 'longer' : 'different'} (${percent.toFixed(2)}%)`;
+  $('length-delta').textContent = `Δ ${diff >= 0 ? '+' : '−'}${Math.abs(diff).toFixed(3)}s`;
+  const zoomSeconds = Math.min(d.max, Math.max(3, Math.min(12, Math.abs(diff) * 11)));
+  $('ending-zoom-label').textContent = `Last ${zoomSeconds.toFixed(1)}s`;
+  const start = d.max - zoomSeconds;
+  for (const side of ['A', 'B']) {
+    const pct = Math.min(100, Math.max(0, (d[side] - start) / zoomSeconds * 100));
+    $('length-bar-' + side.toLowerCase()).style.width = `${pct}%`;
+    $('ending-time-' + side.toLowerCase()).textContent = prettyTime(d[side], true);
+  }
+  const tickBox = $('timeline-ticks');
+  tickBox.replaceChildren();
+  for (let i = 0; i <= 4; i++) {
+    const span = document.createElement('span');
+    span.textContent = prettyTime(d.max * i / 4);
+    tickBox.append(span);
+  }
 }
 
 function setReferenceMode(mode) {
@@ -467,6 +543,14 @@ function bindEvents() {
   });
   document.querySelectorAll('[data-cents]').forEach(button => button.addEventListener('click', () => applyPitch(Number(button.dataset.cents))));
   $('apply-all').addEventListener('change', () => { if ($('apply-all').checked && selected()) applyPitch(selected().cents); });
+  document.querySelectorAll('[data-waveform-mode]').forEach(button => button.addEventListener('click', () => {
+    waveformMode = button.dataset.waveformMode;
+    document.querySelectorAll('[data-waveform-mode]').forEach(b => {
+      b.classList.toggle('selected', b === button);
+      b.setAttribute('aria-pressed', String(b === button));
+    });
+    waveCaches.clear(); renderWaveforms();
+  }));
   $('mode-rendered').addEventListener('click', () => setReferenceMode('processed'));
   $('mode-reference').addEventListener('click', () => setReferenceMode('reference'));
   $('choose-reference').addEventListener('click', chooseReference);
@@ -491,7 +575,10 @@ function bindEvents() {
   for (const side of ['a','b']) {
     const wave = $('wave-' + side);
     wave.addEventListener('click', e => {
-      const bounds = wave.getBoundingClientRect(); seek((e.clientX - bounds.left - 12) / (bounds.width - 24));
+      const bounds = wave.getBoundingClientRect();
+      const relativeTime = safeFraction((e.clientX - bounds.left - 12) / Math.max(1, bounds.width - 24)) * waveDurations().max;
+      const thisDuration = side === 'a' ? waveDurations().A : waveDurations().B;
+      seek(safeFraction(relativeTime / Math.max(.001, thisDuration)));
     });
     wave.addEventListener('keydown', e => { if (e.key === 'ArrowLeft') { seek(currentFraction() - .01); e.preventDefault(); } if (e.key === 'ArrowRight') { seek(currentFraction() + .01); e.preventDefault(); } });
   }

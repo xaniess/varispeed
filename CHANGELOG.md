@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.5
+
+- Fall back to clearly labeled duration-based pitch estimates when waveform alignment is inconclusive.
+- Add detail and natural waveform rendering using RMS with 1,800 samples, replacing a peak-only display.
+- Compare A and B on a single true time scale with a magnified ending alignment view.
+- Balance top and bottom screen spacing and integrate Updates into the hero as a quiet utility action.
+- Preserve the existing exact-cent audio processing and signed updater.
+
 ## 0.3.4
 
 - Follow the reusable lūtera product guidelines and include their Markdown source in the repository.

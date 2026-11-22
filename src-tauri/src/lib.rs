@@ -29,6 +29,8 @@ struct PreviewInfo {
     reference_file_duration: Option<f64>,
     original_peaks: Vec<f32>,
     b_peaks: Vec<f32>,
+    original_rms: Vec<f32>,
+    b_rms: Vec<f32>,
     effective_cents: Option<f64>,
     reference_signal_a: Option<Vec<f32>>,
     reference_signal_b: Option<Vec<f32>>,
@@ -130,20 +132,33 @@ async fn decode_wav(app: &AppHandle, source: &str, target: &Path, cents: Option<
     Ok(())
 }
 
-async fn peaks(app: &AppHandle, file: &Path) -> Result<Vec<f32>, String> {
+// High-resolution waveform: transient peaks and actual energy, rather than
+// only peak maxima. Loud mastered recordings can look solid when the maximum
+// sample of every bin is near 0 dBFS. RMS retains useful shape and dynamics.
+struct WaveformEnvelope { peaks: Vec<f32>, rms: Vec<f32> }
+
+async fn waveform_envelope(app: &AppHandle, file: &Path) -> Result<WaveformEnvelope, String> {
     let raw = tool(app, "ffmpeg", vec![
         "-v".into(), "error".into(), "-nostdin".into(), "-i".into(), file.to_string_lossy().into_owned(),
-        "-map".into(), "0:a:0".into(), "-ac".into(), "1".into(), "-ar".into(), "2000".into(), "-f".into(), "s16le".into(), "pipe:1".into()
+        "-map".into(), "0:a:0".into(), "-ac".into(), "1".into(), "-ar".into(), "2000".into(),
+        "-f".into(), "s16le".into(), "pipe:1".into()
     ]).await?;
-    let data: Vec<i16> = raw.chunks_exact(2).map(|b| i16::from_le_bytes([b[0], b[1]])).collect();
-    let size = data.len().div_ceil(850).max(1);
-    let mut out = Vec::with_capacity(850);
-    for slice in data.chunks(size) {
-        let mut max_val = 0i32;
-        for &v in slice { max_val = max_val.max(i32::from(v).abs()); }
-        out.push(((max_val as f64 / 32768.0).min(1.0).sqrt()) as f32);
+    let samples = raw.chunks_exact(2).map(|b| i16::from_le_bytes([b[0], b[1]])).collect::<Vec<_>>();
+    let size = samples.len().div_ceil(1800).max(1);
+    let mut peaks = Vec::with_capacity(1800);
+    let mut rms = Vec::with_capacity(1800);
+    for chunk in samples.chunks(size) {
+        let mut max_sample: i32 = 0;
+        let mut power: f64 = 0.0;
+        for &sample in chunk {
+            let amplitude = i32::from(sample).abs();
+            max_sample = max_sample.max(amplitude);
+            power += f64::from(sample) * f64::from(sample);
+        }
+        peaks.push((max_sample as f32 / 32768.0).min(1.0));
+        rms.push(((power / chunk.len() as f64).sqrt() / 32768.0).min(1.0) as f32);
     }
-    Ok(out)
+    Ok(WaveformEnvelope { peaks, rms })
 }
 
 // Time-aligned log-RMS envelopes, at 100 samples per second, for reference
@@ -204,7 +219,8 @@ async fn make_preview(app: AppHandle, source: String, cents: f64, reference: Opt
     let b_actual = probe(&app, &b.to_string_lossy()).await?;
     app.asset_protocol_scope().allow_file(&original).map_err(|e| format!("Cannot load original in player: {e}"))?;
     app.asset_protocol_scope().allow_file(&b).map_err(|e| format!("Cannot load transformed file in player: {e}"))?;
-    let (original_peaks, b_peaks) = (peaks(&app, &original).await?, peaks(&app, &b).await?);
+    let a_wave = waveform_envelope(&app, &original).await?;
+    let b_wave = waveform_envelope(&app, &b).await?;
     let (reference_signal_a, reference_signal_b) = if reference.is_some() {
         (Some(timing_envelope(&app, &original).await?), Some(timing_envelope(&app, &b).await?))
     } else { (None, None) };
@@ -215,7 +231,9 @@ async fn make_preview(app: AppHandle, source: String, cents: f64, reference: Opt
         original_path: original.to_string_lossy().into_owned(), b_path: b.to_string_lossy().into_owned(),
         original_duration: a_actual.duration, b_duration: b_actual.duration,
         source_file_duration: a_info.duration, reference_file_duration: reference_info.map(|x| x.duration),
-        original_peaks, b_peaks, effective_cents, reference_signal_a, reference_signal_b,
+        original_peaks: a_wave.peaks, b_peaks: b_wave.peaks,
+        original_rms: a_wave.rms, b_rms: b_wave.rms,
+        effective_cents, reference_signal_a, reference_signal_b,
         mode: if reference.is_some() { "reference" } else { "processed" }.into()
     })
 }
@@ -289,7 +307,7 @@ async fn export_audio(app: AppHandle, request: ExportRequest) -> Result<String, 
         let target = unique_target(folder, &stem, ext);
         match fs::rename(&temp, &target) {
             Ok(()) => return Ok(target.to_string_lossy().into_owned()),
-            Err(_e) if target.exists() && attempt < 5 => { attempt += 1; continue; }
+            Err(e) if target.exists() && attempt < 5 => { attempt += 1; continue; }
             Err(e) => { let _ = fs::remove_file(&temp); return Err(format!("Cannot save export: {e}")); }
         }
     }
