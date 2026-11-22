@@ -1,24 +1,32 @@
-.update-control{position:relative;margin-left:auto;z-index:30}
-.update-toggle{display:inline-flex;align-items:center;gap:8px;padding:9px 13px;border:1px solid #d0d5d1;border-radius:9px;background:#fffdfa;color:#354044;font:600 12px inherit;cursor:pointer}
-.update-toggle:hover{background:#f6f3ea}
-.update-dot{width:7px;height:7px;border-radius:50%;border:1px solid #9daca7}
-.update-dot.available{background:#4b7865;box-shadow:0 0 0 4px #dfebe3}
-.update-panel{position:absolute;top:calc(100% + 10px);right:0;padding:19px;width:min(342px,calc(100vw - 22px));border:1px solid #d7dad4;border-radius:14px;background:#fffdfa;color:#303a3d;box-shadow:0 18px 50px #26303b26}
-.update-panel[hidden],.update-panel [hidden]{display:none!important}
-.update-heading{display:flex;justify-content:space-between;align-items:center}
-.update-heading strong{font:500 21px Georgia,serif}
-.update-close{border:0;background:transparent;color:#627073;font-size:23px;cursor:pointer}
-.update-meta{display:flex;gap:8px;color:#697777;font-size:12px}
-.update-meta b{color:#334346}
-.update-new{margin-left:auto;color:#4b7865}
-.update-status{font-size:13px;line-height:1.5;margin:16px 0}
-.update-notes{white-space:pre-wrap;overflow-wrap:anywhere;max-height:110px;overflow:auto;background:#f6f3ed;border-radius:8px;padding:10px;font-size:12px}
-.update-progress{margin:12px 0;height:5px;border-radius:20px;background:#e3e8e4;overflow:hidden}
-.update-progress>div{width:0;height:100%;background:#657c7f;transition:width .15s linear}
-.update-actions{display:flex;gap:8px;margin-top:15px}
-.update-actions button{padding:10px 12px;font-size:12px;font-weight:600;border-radius:8px;cursor:pointer}
-.update-check{border:1px solid #cfd5d3;color:#3f4e51;background:#fff}
-.update-install{flex:1;border:1px solid #3e5357;background:#3e5357;color:white}
-.update-actions button:disabled{opacity:.5;cursor:progress}
-.update-panel>a{display:inline-block;margin-top:14px;color:#576f76;font-size:11px;text-underline-offset:3px}
-@media(prefers-reduced-motion:reduce){.update-progress>div{transition:none}}
+/* lūtera updater: quiet chrome, warm atmosphere, deliberate controls. */
+.update-control { position: relative; margin-left: auto; z-index: 25; }
+.update-trigger { display: inline-flex; align-items: center; gap: 8px; padding: 9px 13px; cursor: pointer;
+  color: #354044; background: rgba(255,255,255,.6); border: 1px solid #d4d8d6; border-radius: 10px;
+  font-size: 12px; font-weight: 650; letter-spacing: .045em; transition: background .18s ease,border-color .18s ease,transform .18s ease; }
+.update-trigger:hover, .update-trigger[aria-expanded="true"] { background: #fffdf8; border-color: #a7b4b4; }
+.update-trigger:active { transform: translateY(1px); }
+.update-indicator { width: 7px; height: 7px; border: 1px solid #97aaa9; border-radius: 50%; }
+.update-indicator.has-update { background: #4d8072; border-color: #4d8072; box-shadow: 0 0 0 4px rgba(77,128,114,.10); }
+.update-panel { position: absolute; top: calc(100% + 10px); right: 0; width: min(340px, calc(100vw - 32px));
+  padding: 20px; border-radius: 16px; background: #fffdfa; border: 1px solid #d8dad4;
+  box-shadow: 0 18px 55px rgba(36,42,44,.18); color: #303a3d; }
+.update-panel[hidden] { display: none !important; }
+.update-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.update-heading strong { font-family: Georgia, serif; font-size: 21px; font-weight: 500; }
+.update-close { border: 0; background: transparent; color: #536367; padding: 3px 8px; font-size: 25px; cursor: pointer; }
+.update-meta { display: flex; align-items: center; gap: 9px; margin-top: 12px; font-size: 12px; color: #6b7676; }
+.update-meta strong { color: #323b40; }
+#update-available { margin-left: auto; border: 1px solid #cfdad3; background: #eef5f0; border-radius: 6px; padding: 4px 7px; color: #466d57; }
+.update-status { margin: 16px 0 10px; font-size: 13px; line-height: 1.55; }
+.update-notes { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 100px; overflow-y: auto; background: #f6f4ee;
+  border: 1px solid #ebe6da; padding: 10px; font-size: 12px; line-height: 1.45; border-radius: 8px; }
+.update-progress { height: 5px; margin-top: 14px; border-radius: 100px; background: #e7e9e5; overflow: hidden; }
+#update-progress-fill { height: 100%; width: 0; background: #5e787f; transition: width .14s linear; }
+.update-actions { display: flex; gap: 8px; margin-top: 16px; }
+.update-actions button { padding: 10px 12px; border-radius: 9px; cursor: pointer; font-size: 12px; font-weight: 650; }
+.update-check { border: 1px solid #ced4d4; background: #fff; color: #424e52; }
+.update-install { border: 1px solid #35484d; background: #35484d; color: #fff; flex: 1; }
+.update-actions button:disabled { opacity: .5; cursor: progress; }
+.update-releases { display: inline-block; margin-top: 15px; color: #526c76; font-size: 11px; text-decoration: underline; text-underline-offset: 3px; }
+@media (max-width: 700px) { .update-trigger { padding: 7px 9px; } .update-panel { right: -4px; } }
+@media (prefers-reduced-motion: reduce) { .update-trigger, #update-progress-fill { transition: none; } }

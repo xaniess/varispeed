@@ -18,7 +18,7 @@ export function centsText(cents, suffix = '¢') {
   return `${n > 0 ? '+' : ''}${Number(n.toFixed(2))}${suffix}`;
 }
 export function prettyTime(seconds, milliseconds = true) {
-  if (!Number.isFinite(Number(seconds))) return '—';
+  if (!Number.isFinite(Number(seconds))) return '...';
   const s = Math.max(0, Number(seconds));
   const mm = Math.floor(s / 60);
   const ss = Math.floor(s % 60);
@@ -26,7 +26,7 @@ export function prettyTime(seconds, milliseconds = true) {
   return `${mm}:${String(ss).padStart(2, '0')}${frac}`;
 }
 export function deltaText(seconds) {
-  if (!Number.isFinite(seconds)) return '—';
+  if (!Number.isFinite(seconds)) return '...';
   return `${seconds > 0 ? '+' : seconds < 0 ? '−' : ''}${Math.abs(seconds).toFixed(3)}s`;
 }
 export function safeStem(name) {

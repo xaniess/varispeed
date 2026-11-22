@@ -25,8 +25,9 @@ test('waveforms cache geometry and use animation frames', () => {
 });
 
 test('revised listening interface removes redundant version tags and em dashes', () => {
-  assert.doesNotMatch(html, /003\.1|№ 003\.1|—/);
-  assert.doesNotMatch(js, /—/);
+  assert.doesNotMatch(html, /003\.1|№ 003\.1/);
+  assert.ok(!html.includes(String.fromCharCode(0x2014)));
+  assert.ok(!js.includes(String.fromCharCode(0x2014)));
   assert.match(html, /polish\.css/);
   assert.match(css, /prefers-reduced-motion/);
 });

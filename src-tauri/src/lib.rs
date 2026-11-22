@@ -30,6 +30,8 @@ struct PreviewInfo {
     original_peaks: Vec<f32>,
     b_peaks: Vec<f32>,
     effective_cents: Option<f64>,
+    reference_signal_a: Option<Vec<f32>>,
+    reference_signal_b: Option<Vec<f32>>,
     mode: String,
 }
 
@@ -144,6 +146,31 @@ async fn peaks(app: &AppHandle, file: &Path) -> Result<Vec<f32>, String> {
     Ok(out)
 }
 
+// Time-aligned log-RMS envelopes, at 100 samples per second, for reference
+// comparison. Higher resolution than the display waveform and resistant to
+// MP3 frame padding and long export tails.
+async fn timing_envelope(app: &AppHandle, file: &Path) -> Result<Vec<f32>, String> {
+    let raw = tool(app, "ffmpeg", vec![
+        "-v".into(), "error".into(), "-nostdin".into(), "-i".into(), file.to_string_lossy().into_owned(),
+        "-map".into(), "0:a:0".into(), "-ac".into(), "1".into(), "-ar".into(), "2000".into(),
+        "-f".into(), "s16le".into(), "pipe:1".into(),
+    ]).await?;
+    let frames: Vec<f32> = raw.chunks_exact(40).map(|frame| {
+        let mut total: f64 = 0.0;
+        for sample in frame.chunks_exact(2) {
+            let value = i16::from_le_bytes([sample[0], sample[1]]) as f64;
+            total += value * value;
+        }
+        ((1.0 + (total / 20.0).sqrt() / 100.0).ln()) as f32
+    }).collect();
+    if frames.len() < 600 { return Ok(Vec::new()); }
+    let mut smoothed = frames.clone();
+    for i in 1..frames.len() - 1 {
+        smoothed[i] = frames[i - 1] * 0.2 + frames[i] * 0.6 + frames[i + 1] * 0.2;
+    }
+    Ok(smoothed)
+}
+
 #[tauri::command]
 async fn choose_audio_files() -> Result<Vec<String>, String> {
     let paths = tauri::async_runtime::spawn_blocking(|| {
@@ -178,6 +205,9 @@ async fn make_preview(app: AppHandle, source: String, cents: f64, reference: Opt
     app.asset_protocol_scope().allow_file(&original).map_err(|e| format!("Cannot load original in player: {e}"))?;
     app.asset_protocol_scope().allow_file(&b).map_err(|e| format!("Cannot load transformed file in player: {e}"))?;
     let (original_peaks, b_peaks) = (peaks(&app, &original).await?, peaks(&app, &b).await?);
+    let (reference_signal_a, reference_signal_b) = if reference.is_some() {
+        (Some(timing_envelope(&app, &original).await?), Some(timing_envelope(&app, &b).await?))
+    } else { (None, None) };
     let effective_cents = if reference.is_some() { None } else {
         Some(1200.0 * ((a_info.sample_rate as f64 * validate_pitch(cents)?).round() / a_info.sample_rate as f64).log2())
     };
@@ -185,7 +215,7 @@ async fn make_preview(app: AppHandle, source: String, cents: f64, reference: Opt
         original_path: original.to_string_lossy().into_owned(), b_path: b.to_string_lossy().into_owned(),
         original_duration: a_actual.duration, b_duration: b_actual.duration,
         source_file_duration: a_info.duration, reference_file_duration: reference_info.map(|x| x.duration),
-        original_peaks, b_peaks, effective_cents,
+        original_peaks, b_peaks, effective_cents, reference_signal_a, reference_signal_b,
         mode: if reference.is_some() { "reference" } else { "processed" }.into()
     })
 }
@@ -259,7 +289,7 @@ async fn export_audio(app: AppHandle, request: ExportRequest) -> Result<String, 
         let target = unique_target(folder, &stem, ext);
         match fs::rename(&temp, &target) {
             Ok(()) => return Ok(target.to_string_lossy().into_owned()),
-            Err(e) if target.exists() && attempt < 5 => { attempt += 1; continue; }
+            Err(_e) if target.exists() && attempt < 5 => { attempt += 1; continue; }
             Err(e) => { let _ = fs::remove_file(&temp); return Err(format!("Cannot save export: {e}")); }
         }
     }
@@ -267,10 +297,11 @@ async fn export_audio(app: AppHandle, request: ExportRequest) -> Result<String, 
 
 pub fn run() {
     let mut builder = tauri::Builder::default().plugin(tauri_plugin_shell::init());
-    // Only signed release builds enable the updater, never unsigned CI builds.
-    if let Some(key) = option_env!("TAURI_UPDATER_PUBKEY") {
-        if !key.trim().is_empty() {
-            builder = builder.plugin(tauri_plugin_updater::Builder::new().pubkey(key).build());
+    // Only official signed releases get the updater key. Unsigned CI builds
+    // remain usable without accidentally trusting a placeholder key.
+    if let Some(pubkey) = option_env!("TAURI_UPDATER_PUBKEY") {
+        if !pubkey.trim().is_empty() {
+            builder = builder.plugin(tauri_plugin_updater::Builder::new().pubkey(pubkey).build());
         }
     }
     builder.setup(|app| {

@@ -1,11 +1,16 @@
-name: Publish signed Windows release
+name: Publish Windows release
+
 on:
   push:
-    tags: ['v*']
+    tags:
+      - 'v*'
+
 permissions:
   contents: write
+
 jobs:
   release-windows:
+    name: Signed Windows installer and updater feed
     runs-on: windows-latest
     timeout-minutes: 75
     env:
@@ -23,17 +28,17 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
-      - name: Prepare FFmpeg binaries
+      - name: Prepare FFmpeg and FFprobe sidecars
         shell: pwsh
         run: ./scripts/prepare-ffmpeg.ps1
       - name: Install frontend dependencies
         run: npm install --no-fund --no-audit
-      - name: Run tests
+      - name: Run regression tests
         run: npm test
-      - name: Validate tag and signing configuration
+      - name: Validate signing configuration and release tag
         shell: pwsh
         run: ./scripts/prepare-release.ps1
-      - name: Build, sign, and publish stable Windows release
+      - name: Build, sign and publish a stable release
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -41,9 +46,9 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: 'Varispeed ${{ github.ref_name }}'
           releaseBody: |
-            Windows x64 installer with signed in-app updates.
-            Install the NSIS setup executable once, then update through Varispeed.
-            Windows publisher signing is separate from Tauri updater signatures.
+            Windows x64 installer with authenticated in-app updates.
+            Choose the NSIS setup executable to enable updates from within Varispeed.
+            This build has a signed updater payload. Windows publisher code signing is separate.
           releaseDraft: false
           prerelease: false
           uploadUpdaterJson: true
