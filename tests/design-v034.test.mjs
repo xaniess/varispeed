@@ -19,18 +19,18 @@ test('brand layout uses one centered lūtera wordmark, persistent actions and un
   assert.match(html, /class="empty-mark"><svg/);
 });
 
-test('reference mode advertises estimated pitch without trusting raw file durations', () => {
+test('reference mode prefers matched timing and labels duration fallback', () => {
   assert.match(read('index.html'), /id="reference-analysis"/);
-  assert.match(read('src/app.js'), /estimateReferenceCents\(result\.referenceSignalA/);
+  assert.match(read('src/app.js'), /bestReferenceEstimate\(/);
   assert.match(read('src-tauri/src/lib.rs'), /async fn timing_envelope/);
   assert.match(read('src-tauri/src/lib.rs'), /reference_signal_a/);
   assert.match(read('src/reference-analysis.js'), /timingCorrelation/);
 });
 
-test('version 0.3.4 is consistent and no source text uses em dashes', () => {
-  assert.equal(JSON.parse(read('package.json')).version, '0.3.4');
-  assert.equal(JSON.parse(read('src-tauri/tauri.conf.json')).version, '0.3.4');
-  assert.match(read('src-tauri/Cargo.toml'), /version = "0\.3\.4"/);
+test('version 0.3.5 is consistent and no source text uses em dashes', () => {
+  assert.equal(JSON.parse(read('package.json')).version, '0.3.5');
+  assert.equal(JSON.parse(read('src-tauri/tauri.conf.json')).version, '0.3.5');
+  assert.match(read('src-tauri/Cargo.toml'), /version = "0\.3\.5"/);
   const skip = new Set(['node_modules','dist','.git','target']);
   function scan(dir) {
     for (const entry of readdirSync(dir)) {

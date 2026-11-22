@@ -51,8 +51,26 @@ export function estimateReferenceCents(a, b) {
   };
 }
 
+export function estimateFromDurations(originalSeconds, referenceSeconds) {
+  if (!Number.isFinite(originalSeconds) || !Number.isFinite(referenceSeconds) ||
+      originalSeconds <= 0 || referenceSeconds <= 0) return null;
+  const speed = originalSeconds / referenceSeconds;
+  const cents = 1200 * Math.log2(speed);
+  if (!Number.isFinite(cents) || Math.abs(cents) > 1200) return null;
+  return { cents: Math.round(cents * 100) / 100, speed, confidence: 'approximate', method: 'duration' };
+}
+
+export function bestReferenceEstimate(signalA, signalB, originalSeconds, referenceSeconds) {
+  const aligned = estimateReferenceCents(signalA, signalB);
+  if (aligned) return { ...aligned, method: 'alignment' };
+  return estimateFromDurations(originalSeconds, referenceSeconds);
+}
+
 export function formatReferenceEstimate(estimate) {
-  if (!estimate) return 'Pitch estimate unavailable: audio does not align confidently';
+  if (!estimate) return 'Unable to estimate the pitch shift from these files.';
   const shift = `${estimate.cents > 0 ? '+' : ''}${estimate.cents.toFixed(1)}¢`;
+  if (estimate.method === 'duration') {
+    return `Approx. ${shift}  |  ${estimate.speed.toFixed(5)}×  |  from file length (may include silence or padding)`;
+  }
   return `Estimated ${shift}  |  ${estimate.speed.toFixed(5)}×  |  ${estimate.confidence} timing match`;
 }

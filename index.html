@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="/src/polish.css" />
   <link rel="stylesheet" href="/src/updater.css" />
   <link rel="stylesheet" href="/src/refinement.css" />
+  <link rel="stylesheet" href="/src/v035.css" />
 </head>
 <body>
   <div class="app-shell">
@@ -74,10 +75,17 @@
           <button id="mode-rendered" class="selected" aria-pressed="true">Processed</button><button id="mode-reference" aria-pressed="false">Reference</button>
         </div></div>
         <div class="reference-toolbar" id="reference-toolbar" hidden>
-          <div class="reference-details"><span id="reference-name">No reference attached</span><output id="reference-analysis" aria-live="polite" title="Estimated from matching audio timing. Assumes coupled pitch and speed, not a spectral pitch reading.">Attach a reference to estimate its shift</output></div>
+          <div class="reference-details"><span id="reference-name">No reference attached</span><output id="reference-analysis" aria-live="polite" title="Uses matched audio timing when confident. Otherwise estimates from decoded durations, which may include silence or padding.">Attach a reference to estimate its shift</output></div>
           <div><button id="choose-reference" class="small-action">Choose reference WAV / MP3</button><button id="clear-reference" class="small-action muted">Remove</button></div>
         </div>
 
+        <div class="wave-visual-controls" role="group" aria-label="Waveform view">
+          <span>Waveform</span>
+          <div class="wave-view-switch">
+            <button data-waveform-mode="detail" class="selected" aria-pressed="true" title="Contrast-enhanced energy view. Makes subtle dynamics in mastered audio visible.">Detail</button>
+            <button data-waveform-mode="natural" aria-pressed="false" title="Natural relative audio energy, without extra contrast.">Natural</button>
+          </div>
+        </div>
         <div class="wave-panel" data-side="A">
           <div class="wave-caption"><div class="wave-id"><span class="wave-letter">A</span><span><strong>ORIGINAL</strong><small id="wave-name-a">NO TRACK SELECTED</small></span></div><div class="duration"><span id="elapsed-a">0:00.000</span><span class="duration-slash">/</span><strong id="duration-a">...</strong></div></div>
           <canvas id="wave-a" class="wave-canvas" aria-label="Original waveform, click to seek" role="button" tabindex="0"></canvas>
@@ -89,6 +97,12 @@
           
         </div>
 
+        <div id="timeline-ticks" class="timeline-ticks" aria-label="Shared timeline"></div>
+        <div id="length-comparison" class="length-comparison" hidden aria-label="Compare the final seconds of both versions">
+          <div class="length-head"><strong>End alignment</strong><span id="ending-zoom-label">Last 5.0s</span><b id="length-delta">Δ ...</b></div>
+          <div class="length-track"><span class="length-track-id">A</span><div class="length-track-rail"><span id="length-bar-a" class="length-track-bar a"></span></div><span id="ending-time-a">...</span></div>
+          <div class="length-track"><span class="length-track-id">B</span><div class="length-track-rail"><span id="length-bar-b" class="length-track-bar b"></span></div><span id="ending-time-b">...</span></div>
+        </div>
         <div class="transport-area">
           <div class="transport-row"><div class="switch-group"><button id="side-a" class="active" aria-pressed="true">A <span>Original</span></button><button id="side-b" aria-pressed="false">B <span>Compare</span></button></div>
             <button id="restart" class="transport-icon" aria-label="Return to start" title="Return to start">↶</button>
