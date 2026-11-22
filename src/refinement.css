@@ -1,0 +1,80 @@
+/* v0.3.4: shared lūtera product language. One type system, minimal copy,
+   visible controls and consistent alignment. */
+:root {
+  --font-display: 'Bodoni MT', 'Didot', Georgia, serif;
+  --font-ui: 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  --font-code: 'Cascadia Code', Consolas, 'Courier New', monospace;
+  font-family: var(--font-ui);
+}
+body, button, input, select { font-family: var(--font-ui); }
+.panel h2, .hero h1, .update-heading strong { font-family: var(--font-display); }
+.panel-heading, .queue-head, .field-label, .pitch-metrics span,
+.compare-heading, .form-grid label > span, .folder-field > span,
+.wave-id strong, .render-state { font-family: var(--font-ui); letter-spacing: .045em; }
+.duration, .pitch-metrics strong, .row-pitch, .preset,
+.transport-foot > span:first-child { font-family: var(--font-code); font-variant-numeric: tabular-nums; }
+.pitch-input-line input { font-family: var(--font-code); font-size: 27px; }
+.hero { height: 168px; padding: 28px 34px; overflow: visible; z-index: 20; }
+.hero-content { position: relative; z-index: 2; pointer-events: none; }
+.hero h1 { margin: 17px 0 0; }
+.workspace { position: relative; z-index: 1; }
+/* Entire collection follows the main work as the window scrolls.
+   Tracks scroll inside the collection and the import rail stays accessible. */
+.collection {
+  align-self: start;
+  position: sticky;
+  top: 12px;
+  height: calc(100dvh - 208px);
+  min-height: 420px;
+  max-height: 800px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.collection .track-list { flex: 1 1 auto; min-height: 0; max-height: none; overflow-y: auto; overscroll-behavior: contain; }
+.collection .queue-footer {
+  flex: 0 0 auto; position: relative; margin-top: 0;
+  padding: 14px 0 1px; z-index: 1;
+  background: rgba(255,254,250,.98);
+  box-shadow: 0 -12px 20px rgba(255,254,250,.92);
+}
+.collection .queue-actions { display: flex; gap: 7px; }
+.empty-mark {
+  display: flex; align-items: center; justify-content: center;
+  padding: 0; line-height: 1; font-size: inherit;
+}
+.empty-mark svg { display: block; width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; }
+/* Keep the threshold's rounded crown entirely inside the hero. */
+.portal-scene { transform: none; transform-origin: center; right: 0; height: 100%; pointer-events: none; }
+.door-frame { height: 137px; width: 102px; bottom: 4px; right: 144px; border-radius: 54px 54px 0 0; }
+.door { border-radius: 51px 51px 0 0; }
+.door-rosette { top: 41px; height: 45px; width: 45px; }
+.door-knob { top: 91px; right: 13px; }
+.portal-light { right: 105px; top: -5px; }
+/* The update menu belongs to the hero, not a second navigation bar. */
+.update-control { position: absolute; top: 18px; right: 270px; z-index: 40; margin: 0; }
+.update-trigger { font-family: var(--font-ui); font-size: 12px; }
+.update-panel { font-family: var(--font-ui); }
+.reference-toolbar { display: flex; align-items: center; gap: 15px; }
+.reference-details { display: flex; flex-direction: column; gap: 5px; flex: 1 1 auto; min-width: 0; }
+.reference-details #reference-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: #4b5555; }
+.reference-details #reference-analysis { color: #5d6967; font: 11px var(--font-code); font-variant-numeric: tabular-nums; line-height: 1.4; }
+.reference-toolbar > div:last-child { flex: 0 0 auto; }
+.brand-footer { display: flex; justify-content: center; align-items: center; padding: 21px 0 24px; }
+.footer-wordmark { font-family: Georgia, serif; font-size: 16px; font-weight: 400; letter-spacing: .15em; text-transform: none; color: #323638; }
+@media (max-height: 620px) {
+  .collection { min-height: 280px; height: calc(100dvh - 208px); top: 8px; padding: 12px; }
+  .collection .empty-collection { height: 170px; }
+}
+@media (max-width: 1090px) {
+  .portal-scene { width: 390px; opacity: .9; }
+  .door-frame { right: 115px; }
+  .update-control { top: 10px; right: 205px; }
+  .reference-toolbar { flex-wrap: wrap; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .collection, .update-control { transition: none; }
+}
+
+#add-tracks { display: inline-flex; align-items: center; justify-content: center; gap: 9px; }
+.button-plus { height: 13px; width: 13px; display: inline-block; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; flex: 0 0 auto; }

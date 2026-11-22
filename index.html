@@ -9,19 +9,13 @@
   <link rel="stylesheet" href="/src/atelier.css" />
   <link rel="stylesheet" href="/src/polish.css" />
   <link rel="stylesheet" href="/src/updater.css" />
+  <link rel="stylesheet" href="/src/refinement.css" />
 </head>
 <body>
   <div class="app-shell">
-    <nav class="topline" aria-label="Application navigation">
-      <div class="wordmark">lūtera <span>/</span> <b>varispeed</b></div>
-      <div class="app-state"><span class="live-pip"></span> LOCAL AUDIO</div>
-    </nav>
-
     <header class="hero">
       <div class="hero-content">
-        <div class="eyebrow">A LŪTERA INSTRUMENT</div>
         <h1>vari<span>speed.</span></h1>
-        <p>Move the pitch. Move the moment.</p>
         
       </div>
       <div class="portal-scene" aria-hidden="true">
@@ -45,11 +39,11 @@
         
         <div class="queue-head"><span>TRACK</span><span>SHIFT</span></div>
         <div class="track-list" id="track-list" aria-label="Imported tracks">
-          <div class="empty-collection"><span class="empty-mark">＋</span><strong>Your collection is empty</strong><span>Drop audio here</span></div>
+          <div class="empty-collection"><span class="empty-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M4 12h16" /></svg></span><strong>Your collection is empty</strong><span>Drop audio here</span></div>
         </div>
         <div class="queue-footer">
           <div class="queue-actions">
-            <button id="add-tracks" class="button primary"><span>＋</span> Add tracks</button>
+            <button id="add-tracks" class="button primary"><svg class="button-plus" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg> Add tracks</button>
             <button id="remove-track" class="button secondary">Remove</button>
             <button id="clear-tracks" class="text-button">Clear</button>
           </div>
@@ -80,7 +74,7 @@
           <button id="mode-rendered" class="selected" aria-pressed="true">Processed</button><button id="mode-reference" aria-pressed="false">Reference</button>
         </div></div>
         <div class="reference-toolbar" id="reference-toolbar" hidden>
-          <span id="reference-name">No reference attached</span>
+          <div class="reference-details"><span id="reference-name">No reference attached</span><output id="reference-analysis" aria-live="polite" title="Estimated from matching audio timing. Assumes coupled pitch and speed, not a spectral pitch reading.">Attach a reference to estimate its shift</output></div>
           <div><button id="choose-reference" class="small-action">Choose reference WAV / MP3</button><button id="clear-reference" class="small-action muted">Remove</button></div>
         </div>
 
@@ -119,7 +113,7 @@
         </div>
       </section>
     </main>
-    <footer><span>AS WITHIN, SO WITHOUT</span><span>MADE BY LŪTERA</span></footer>
+    <footer class="brand-footer" aria-label="lūtera"><span class="footer-wordmark">lūtera</span></footer>
   </div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script type="module" src="/src/app.js"></script>

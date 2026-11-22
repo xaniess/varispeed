@@ -1,6 +1,7 @@
 import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { ratio, centsText, prettyTime, deltaText, safeStem, renderName, fileStem, safeFraction } from './core.js';
+import { estimateReferenceCents, formatReferenceEstimate } from './reference-analysis.js';
 
 const $ = (id) => document.getElementById(id);
 const state = {
@@ -111,7 +112,7 @@ function renderList() {
   const list = $('track-list'); list.replaceChildren();
   if (!state.tracks.length) {
     const empty = document.createElement('div'); empty.className = 'empty-collection';
-    empty.innerHTML = '<span class="empty-mark">＋</span><strong>Your collection is empty</strong><span>Drop tracks here or add them below.</span>';
+    empty.innerHTML = '<span class="empty-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M4 12h16" /></svg></span><strong>Your collection is empty</strong><span>Drop audio here</span>';
     list.append(empty); return;
   }
   state.tracks.forEach((t, i) => {
@@ -167,6 +168,7 @@ function clearAudio() {
   $('elapsed-a').textContent = $('elapsed-b').textContent = '0:00.000';
   $('duration-difference').textContent = 'DURATION · ...';
   $('wave-name-b').textContent = 'MATCHING TIMELINE';
+  $('reference-analysis').textContent = 'Attach a reference to estimate its shift';
   refreshTransport(); renderWaveforms();
 }
 function stopAudio() { ++state.switchSerial; players.A.pause(); players.B.pause(); setGains(state.side); $('play-icon').textContent = '▶'; $('play-label').textContent = 'Play'; }
@@ -229,6 +231,15 @@ async function loadPreview() {
     $('wave-name-a').textContent = t.name;
     $('wave-name-b').textContent = reference ? `${reference.split(/[\\/]/).pop()} · file ${prettyTime(result.referenceFileDuration)}` : 'Exact resample';
     $('b-title').textContent = reference ? 'REFERENCE EXPORT' : 'PROCESSED';
+    if (reference) {
+      const estimated = estimateReferenceCents(result.referenceSignalA, result.referenceSignalB);
+      $('reference-analysis').textContent = formatReferenceEstimate(estimated);
+    } else {
+      $('reference-analysis').textContent = 'Attach a reference to estimate its shift';
+    }
+    // Large high-resolution signal arrays are not used by the waveform display.
+    delete result.referenceSignalA;
+    delete result.referenceSignalB;
     const difference = result.bDuration - result.originalDuration;
     $('duration-difference').textContent = `B vs A: ${deltaText(difference)} ${difference < 0 ? 'shorter' : difference > 0 ? 'longer' : 'equal'}`;
     if (reference) {
@@ -391,6 +402,7 @@ function setReferenceMode(mode) {
   $('mode-rendered').setAttribute('aria-pressed', String(mode === 'processed'));
   $('mode-reference').setAttribute('aria-pressed', String(mode === 'reference'));
   $('reference-toolbar').hidden = mode !== 'reference';
+  $('reference-analysis').textContent = 'Analyzing reference...';
   schedulePreview(50);
 }
 async function chooseReference() {
@@ -398,7 +410,7 @@ async function chooseReference() {
   try {
     const paths = await invoke('choose_audio_files'); if (!paths.length) return;
     await invoke('inspect_audio', { source: paths[0] });
-    t.reference = paths[0]; syncSelectedFields(); schedulePreview(50);
+    t.reference = paths[0]; $('reference-analysis').textContent = 'Analyzing reference...'; syncSelectedFields(); schedulePreview(50);
     showMessage('Reference attached. A/B now compares your two actual files.');
   } catch (e) { showMessage(`Cannot attach reference: ${String(e)}`, 'error'); }
 }
@@ -458,7 +470,7 @@ function bindEvents() {
   $('mode-rendered').addEventListener('click', () => setReferenceMode('processed'));
   $('mode-reference').addEventListener('click', () => setReferenceMode('reference'));
   $('choose-reference').addEventListener('click', chooseReference);
-  $('clear-reference').addEventListener('click', () => { const t = selected(); if (t) { t.reference = null; syncSelectedFields(); schedulePreview(10); } });
+  $('clear-reference').addEventListener('click', () => { const t = selected(); if (t) { t.reference = null; $('reference-analysis').textContent = 'Attach a reference to estimate its shift'; syncSelectedFields(); schedulePreview(10); } });
   $('side-a').addEventListener('click', () => void setSide('A'));
   $('side-b').addEventListener('click', () => void setSide('B'));
   $('play-pause').addEventListener('click', togglePlayback);

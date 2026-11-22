@@ -1,77 +1,150 @@
 import { getVersion } from '@tauri-apps/api/app';
 import { check } from '@tauri-apps/plugin-updater';
 
-// The only network request is the public GitHub release feed. Audio stays local.
-const nav = document.querySelector('.topline');
+// Updates are available in signed release installers. No audio or filenames
+// are transmitted. The updater contacts only the public GitHub Releases endpoint.
+const UPDATE_URL = 'https://github.com/xaniess/varispeed/releases';
+const nav = document.querySelector('.hero');
+
 if (nav) {
   const section = document.createElement('section');
   section.className = 'update-control';
-  section.innerHTML = '<button class="update-toggle" type="button" aria-expanded="false">Updates <span class="update-dot" aria-hidden="true"></span></button>' +
-    '<div class="update-panel" hidden><div class="update-heading"><strong>Software updates</strong><button class="update-close" aria-label="Close">×</button></div>' +
-    '<p class="update-meta">Installed <b class="update-current">...</b><b class="update-new" hidden></b></p><p class="update-status" role="status" aria-live="polite">Checking...</p>' +
-    '<p class="update-notes" hidden></p><div class="update-progress" hidden><div></div></div>' +
-    '<div class="update-actions"><button class="update-check">Check again</button><button class="update-install" hidden>Download &amp; install</button></div>' +
-    '<a href="https://github.com/xaniess/varispeed/releases" target="_blank" rel="noopener noreferrer">Release history</a></div>';
+  section.innerHTML = `
+    <button class="update-trigger" type="button" aria-expanded="false" aria-controls="update-panel">
+      <span class="update-indicator" aria-hidden="true"></span><span>Updates</span>
+    </button>
+    <div class="update-panel" id="update-panel" hidden>
+      <div class="update-heading"><strong>Software updates</strong><button type="button" class="update-close" aria-label="Close updates">×</button></div>
+      <div class="update-meta">Installed <strong id="update-installed">...</strong><span id="update-available" hidden></span></div>
+      <p class="update-status" id="update-status" role="status" aria-live="polite">Checking for updates...</p>
+      <div class="update-notes" id="update-notes" hidden></div>
+      <div class="update-progress" id="update-progress" hidden><div id="update-progress-fill"></div></div>
+      <div class="update-actions">
+        <button class="update-check" type="button">Check again</button>
+        <button class="update-install" type="button" hidden>Download &amp; install</button>
+      </div>
+      <a class="update-releases" href="${UPDATE_URL}" target="_blank" rel="noopener noreferrer">Release history</a>
+    </div>`;
   nav.append(section);
-  const $ = selector => section.querySelector(selector);
-  const toggle = $('.update-toggle'), panel = $('.update-panel'), status = $('.update-status');
-  const notes = $('.update-notes'), install = $('.update-install'), checkButton = $('.update-check');
-  const latest = $('.update-new'), bar = $('.update-progress'), progress = $('.update-progress > div');
-  let candidate = null, busy = false;
-  function setOpen(open) { panel.hidden = !open; toggle.setAttribute('aria-expanded', String(open)); }
-  function setBusy(working) { busy = working; checkButton.disabled = working; install.disabled = working; }
-  async function refresh(open = false) {
+
+  const $ = (selector) => section.querySelector(selector);
+  const trigger = $('.update-trigger');
+  const panel = $('.update-panel');
+  const indicator = $('.update-indicator');
+  const closeButton = $('.update-close');
+  const status = $('.update-status');
+  const installed = $('#update-installed');
+  const available = $('#update-available');
+  const notes = $('#update-notes');
+  const progress = $('#update-progress');
+  const progressFill = $('#update-progress-fill');
+  const checkButton = $('.update-check');
+  const installButton = $('.update-install');
+  let candidate = null;
+  let busy = false;
+
+  function setOpen(open) {
+    panel.hidden = !open;
+    trigger.setAttribute('aria-expanded', String(open));
+  }
+  function setStatus(message) { status.textContent = message; }
+  function setBusy(value) {
+    busy = value;
+    checkButton.disabled = value;
+    installButton.disabled = value;
+  }
+  function clearCandidate() {
+    if (candidate) void candidate.close().catch(() => {});
+    candidate = null;
+    available.hidden = true;
+    notes.hidden = true;
+    notes.textContent = '';
+    installButton.hidden = true;
+    progress.hidden = true;
+    progressFill.style.width = '0%';
+    indicator.classList.remove('has-update');
+  }
+  async function checkForUpdate({ open = false } = {}) {
     if (busy) return;
     if (open) setOpen(true);
-    setBusy(true); status.textContent = 'Checking GitHub Releases...';
-    if (candidate) { await candidate.close().catch(() => {}); candidate = null; }
-    notes.hidden = true; install.hidden = true; latest.hidden = true; bar.hidden = true;
-    $('.update-dot').classList.remove('available');
+    setBusy(true);
+    clearCandidate();
+    setStatus('Checking GitHub Releases...');
     try {
-      candidate = await check({ timeout: 12000 });
-      if (!candidate) status.textContent = 'You are up to date.';
-      else {
-        latest.textContent = 'Available v' + candidate.version;
-        latest.hidden = false;
-        notes.textContent = String(candidate.body || 'A new Varispeed version is ready.').slice(0, 1600);
-        notes.hidden = false; install.hidden = false;
-        $('.update-dot').classList.add('available');
-        status.textContent = 'New version available.';
+      const result = await check({ timeout: 12000 });
+      if (!result) {
+        setStatus('You are up to date.');
+      } else {
+        candidate = result;
+        available.hidden = false;
+        available.textContent = `New ${result.version}`;
+        setStatus('An update is available.');
+        notes.textContent = String(result.body || 'A newer version of Varispeed is available.').slice(0, 2000);
+        notes.hidden = false;
+        installButton.hidden = false;
+        indicator.classList.add('has-update');
       }
-    } catch (e) {
-      status.textContent = /plugin updater not found|command .* not found|unknown plugin|not allowed/i.test(String(e))
-        ? 'Update checks require an official signed installer build.'
-        : 'Unable to check for updates. Try again when online.';
-      console.warn('Update check:', e);
-    } finally { setBusy(false); }
+    } catch (error) {
+      // Dev and unsigned Actions builds do not register the updater plugin.
+      const message = String(error);
+      const unsigned = /plugin updater not found|command .* not found|unknown plugin|not allowed/i.test(message);
+      setStatus(unsigned ? 'Update checks are available in official signed installer builds.' : 'Could not check for updates. Check your connection and try again.');
+      console.warn('Updater check:', error);
+    } finally {
+      setBusy(false);
+    }
   }
-  async function download() {
+  async function installUpdate() {
     if (busy || !candidate) return;
-    setBusy(true); bar.hidden = false; progress.style.width = '0%';
-    let received = 0, total = 0;
+    setBusy(true);
+    const update = candidate;
+    candidate = null;
+    let downloaded = 0;
+    let total = 0;
+    progress.hidden = false;
+    progressFill.style.width = '0%';
+    installButton.textContent = 'Installing...';
+    setStatus('Downloading signed update...');
     try {
-      await candidate.downloadAndInstall(event => {
-        if (event.event === 'Started') { total = Number(event.data.contentLength) || 0; received = 0; }
-        if (event.event === 'Progress') {
-          received += Number(event.data.chunkLength) || 0;
-          const pct = total ? Math.min(100, Math.round(received * 100 / total)) : 0;
-          if (total) progress.style.width = pct + '%';
-          status.textContent = total ? 'Downloading ' + pct + '%...' : 'Downloading update...';
+      await update.downloadAndInstall((event) => {
+        if (event.event === 'Started') {
+          total = Number(event.data.contentLength) || 0;
+          downloaded = 0;
+        } else if (event.event === 'Progress') {
+          downloaded += Number(event.data.chunkLength) || 0;
+          if (total) progressFill.style.width = `${Math.min(100, Math.round((downloaded / total) * 100))}%`;
+          setStatus(total ? `Downloading ${Math.min(100, Math.round((downloaded / total) * 100))}%...` : 'Downloading update...');
+        } else if (event.event === 'Finished') {
+          progressFill.style.width = '100%';
+          setStatus('Download verified. Launching installer...');
         }
-        if (event.event === 'Finished') { progress.style.width = '100%'; status.textContent = 'Download verified. Launching installer...'; }
       });
-      status.textContent = 'Installer launched. Varispeed will close on Windows.';
-    } catch (e) {
-      status.textContent = 'Update failed: ' + String(e);
-      console.error('Update installer:', e);
-    } finally { setBusy(false); }
+      setStatus('Installing update. Varispeed will close on Windows.');
+    } catch (error) {
+      candidate = update;
+      setStatus(`Update failed: ${String(error)}`);
+      installButton.textContent = 'Retry install';
+      console.error('Updater installation:', error);
+    } finally {
+      setBusy(false);
+    }
   }
-  toggle.addEventListener('click', () => setOpen(panel.hidden));
-  $('.update-close').addEventListener('click', () => setOpen(false));
-  checkButton.addEventListener('click', () => void refresh(true));
-  install.addEventListener('click', () => void download());
-  document.addEventListener('pointerdown', event => { if (!section.contains(event.target)) setOpen(false); });
-  document.addEventListener('keydown', event => { if (event.key === 'Escape') setOpen(false); });
-  void getVersion().then(version => { $('.update-current').textContent = 'v' + version; }).catch(() => { $('.update-current').textContent = 'development'; });
-  void refresh();
+
+  trigger.addEventListener('click', () => {
+    if (!panel.hidden) return setOpen(false);
+    setOpen(true);
+  });
+  closeButton.addEventListener('click', () => setOpen(false));
+  checkButton.addEventListener('click', () => void checkForUpdate({ open: true }));
+  installButton.addEventListener('click', () => void installUpdate());
+  document.addEventListener('pointerdown', (event) => {
+    if (!section.contains(event.target)) setOpen(false);
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') setOpen(false);
+  });
+  window.addEventListener('beforeunload', () => { if (candidate) void candidate.close().catch(() => {}); });
+  void getVersion().then((version) => { installed.textContent = `v${version}`; }).catch(() => { installed.textContent = 'Development'; });
+  // A single lightweight request at startup; installation always requires a click.
+  void checkForUpdate();
 }
