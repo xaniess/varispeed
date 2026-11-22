@@ -5,3 +5,6 @@ src-tauri/gen/
 src-tauri/binaries/*.exe
 *.log
 .DS_Store
+
+# CI-generated public-key config (not a committed release file)
+src-tauri/tauri.release.conf.json

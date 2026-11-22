@@ -3,7 +3,6 @@ name: Windows • lūtera varispeed
 on:
   push:
     branches: [main]
-    tags: ['v*']
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -70,27 +69,3 @@ jobs:
           path: release/*
           if-no-files-found: error
           retention-days: 30
-
-  github-release:
-    name: Create tagged GitHub release
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: build-windows
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Download verified build artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: lutera-varispeed-windows-x64
-          path: release
-      - name: Publish pre-release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          TAG: ${{ github.ref_name }}
-        run: |
-          gh release create "$TAG" release/* --repo "$REPO" \
-            --title "lūtera / varispeed $TAG" \
-            --notes "Windows x64 pre-release. Exact-cent resampling, A/B comparison, batch exports. Un-signed binaries may trigger Windows SmartScreen. See project README and third-party notices." \
-            --prerelease --verify-tag
