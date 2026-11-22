@@ -166,7 +166,7 @@ async fn timing_envelope(app: &AppHandle, file: &Path) -> Result<Vec<f32>, Strin
     if frames.len() < 600 { return Ok(Vec::new()); }
     let mut smoothed = frames.clone();
     for i in 1..frames.len() - 1 {
-        smoothed[i] = frames[i - 1] * .2 + frames[i] * .6 + frames[i + 1] * .2;
+        smoothed[i] = frames[i - 1] * 0.2 + frames[i] * 0.6 + frames[i + 1] * 0.2;
     }
     Ok(smoothed)
 }
@@ -289,7 +289,7 @@ async fn export_audio(app: AppHandle, request: ExportRequest) -> Result<String, 
         let target = unique_target(folder, &stem, ext);
         match fs::rename(&temp, &target) {
             Ok(()) => return Ok(target.to_string_lossy().into_owned()),
-            Err(e) if target.exists() && attempt < 5 => { attempt += 1; continue; }
+            Err(_e) if target.exists() && attempt < 5 => { attempt += 1; continue; }
             Err(e) => { let _ = fs::remove_file(&temp); return Err(format!("Cannot save export: {e}")); }
         }
     }
