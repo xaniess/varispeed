@@ -181,7 +181,7 @@ async fn timing_envelope(app: &AppHandle, file: &Path) -> Result<Vec<f32>, Strin
     if frames.len() < 600 { return Ok(Vec::new()); }
     let mut smoothed = frames.clone();
     for i in 1..frames.len() - 1 {
-        smoothed[i] = frames[i - 1] * 0.2 + frames[i] * 0.6 + frames[i + 1] * 0.2;
+        smoothed[i] = frames[i - 1] * .2 + frames[i] * .6 + frames[i + 1] * .2;
     }
     Ok(smoothed)
 }

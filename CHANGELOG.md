@@ -1,3 +1,12 @@
+## 0.3.6
+
+- Replace transport and volume Unicode symbols with consistent, accessible SVG controls.
+- Add a volume button that mutes and restores the previous nonzero volume level.
+- Disable horizontal overscroll and unwanted side-to-side rubber-banding in the app shell.
+- Make the empty collection plus button open the same native file picker as Add Tracks.
+- Remove numerical section prefixes, retaining clear section headings.
+- Preserve the existing waveform, audio engine, resampling, and signed updater.
+
 # Changelog
 
 ## 0.3.5

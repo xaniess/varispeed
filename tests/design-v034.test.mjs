@@ -16,7 +16,7 @@ test('brand layout uses one centered lūtera wordmark, persistent actions and un
   assert.match(css, /height:\s*calc\(100dvh/);
   assert.match(css, /\.door-frame\s*\{[^}]*bottom:\s*4px/);
   assert.match(updater, /querySelector\('\.hero'\)/);
-  assert.match(html, /class="empty-mark"><svg/);
+  assert.match(html, /<button class="empty-mark" type="button" aria-label="Add audio files"/);
 });
 
 test('reference mode prefers matched timing and labels duration fallback', () => {
@@ -27,10 +27,10 @@ test('reference mode prefers matched timing and labels duration fallback', () =>
   assert.match(read('src/reference-analysis.js'), /timingCorrelation/);
 });
 
-test('version 0.3.5 is consistent and no source text uses em dashes', () => {
-  assert.equal(JSON.parse(read('package.json')).version, '0.3.5');
-  assert.equal(JSON.parse(read('src-tauri/tauri.conf.json')).version, '0.3.5');
-  assert.match(read('src-tauri/Cargo.toml'), /version = "0\.3\.5"/);
+test('version 0.3.6 is consistent and no source text uses em dashes', () => {
+  assert.equal(JSON.parse(read('package.json')).version, '0.3.6');
+  assert.equal(JSON.parse(read('src-tauri/tauri.conf.json')).version, '0.3.6');
+  assert.match(read('src-tauri/Cargo.toml'), /version = "0\.3\.6"/);
   const skip = new Set(['node_modules','dist','.git','target']);
   function scan(dir) {
     for (const entry of readdirSync(dir)) {
