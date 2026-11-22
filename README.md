@@ -1,4 +1,4 @@
-# lūtera / varispeed v0.3.2 — Tauri edition
+# lūtera / varispeed v0.3.3 — Tauri edition
 
 A small, local-first audio utility. **Not Electron. Not Python.** The UI runs in Tauri 2 / Windows WebView2, the native layer is Rust, and FFmpeg + FFprobe are included in a built release as sidecars.
 
@@ -82,3 +82,7 @@ Run `npm test` to validate cent ratios, duration math, name templates, and filen
 - All visible em dashes are removed; the interface uses short labels and reduced motion support.
 
 The native Windows UI and headphone panning behavior must still be validated on Windows.
+
+## Signed releases and updates
+
+Stable Windows NSIS installer releases are created from `v*` Git tags after tests. Signed installer builds can check GitHub Releases and install verified updates inside Varispeed with user confirmation. Ordinary Actions builds are for testing and cannot use this updater. See [RELEASES.md](RELEASES.md) for signing and release setup. The first installer is installed manually.
