@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "lutera varispeed",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "identifier": "studio.lutera.varispeed",
   "build": {
     "beforeDevCommand": "npm run dev",
